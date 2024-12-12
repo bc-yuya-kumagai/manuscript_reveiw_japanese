@@ -158,6 +158,8 @@ def check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slide
 
 def check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions):
     """ 設問の中の添え字が問題文中に現れるかをチェックする
+        設問中にどのような形式で添え字が記載されているかは
+        "傍線部1・2"、"傍線部1または2"、"傍線部1または2"とか"傍線部1、2"などバリエーションが多いのでルールベースでの取得が難しいためLLMで取得する
     """
     indexes = [i.index_text for i in passage_sideLine_list]
     not_used_indexes = []

@@ -16,6 +16,8 @@ if __name__ == '__main__':
     docx_file = 'docs/【問題A】自動原稿整理PoC_サンプル原稿（指摘箇所コメント付）.docx'
 
     doc = Document(docx_file)
+
+    # 問の見出しが最初に始まる箇所を特定し、問題文と設問の境界とする
     first_question_paragraph_index:int = doc_util.get_first_question_paragraph_index(doc)
     if not first_question_paragraph_index:
         logger.error('問の見出しスタイルIDが見つかりませんでした')
@@ -53,6 +55,7 @@ if __name__ == '__main__':
         invalid_list.append(result_sl_mapping)
     else:
         logger.info('傍線部の添え字がすべて設問の中で参照されている')
+
     # 設問の中の添え字が問題文中に現れるかをチェックする
     result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
 
