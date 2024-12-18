@@ -44,10 +44,48 @@ def get_first_question_paragraph_index(doc):
     """
     # question_heading_style_idの見出しを持つ段落のインデックスを返す
     # インデックス順に文書が構成されていることを前提とする
+    # for i, p in enumerate(doc.paragraphs):
+    #         for r in p.runs:
+    #             if r.style.style_id == question_heading_style_id:
+    #                 return i
+
+    # 仮の実装 インデントや空白なしで行頭が「問」で始まる段落を問の見出しとする
     for i, p in enumerate(doc.paragraphs):
-            for r in p.runs:
-                if r.style.style_id == question_heading_style_id:
-                    return i
+        if p.text.startswith("問"):
+            return i
+        
+def get_question_texts(doc:Document):
+    """docから問から次の問までのテキストを取得する
+    """
+    questions=[]
+    question_text = ""
+    for p in doc.paragraphs:
+        
+        if p.text.startswith("問"):
+            # 次の問に到達した場合は、現時点の設問文をリストに追加し、設問文を初期化する
+            if len(question_text) > 0:
+                questions.append(question_text)
+                question_text = ""
+            # 設問文を追加、
+            question_text += p.text
+        if len(question_text) > 0:
+            question_text += p.text
+    return questions
+
+def split_exam_2_sections(doc:Document):
+    """ docを大門ごとに分割する
+    大門の先頭は「【」で始まる
+    例: 【必答問題】この問題は全員解答してください。 
+    """
+    sections = []
+    section = []
+    for p in doc.paragraphs:
+        if p.text.startswith("【"):
+            if len(section) > 0:
+                sections.append(section)
+                section = []
+        section.append(p.text)
+    return sections
 
 def clean_sileline_list_in_page_break(list):
     """リストから改ページで発生するごみを削除する。

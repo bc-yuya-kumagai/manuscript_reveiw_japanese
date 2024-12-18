@@ -147,10 +147,10 @@ def check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slide
             # 傍線部なし
             continue
     
-        # 「傍線部」の後ろにindexesの要素があるかを確認する
-        for idx in indexes_master: 
-            if idx in line:
-                indexes_memo.remove(idx) 
+        # 「傍線部xxxxxxxxx」の後ろにindexesの要素があるかを確認する
+        for index_text in indexes_master: 
+            if index_text in line[idx:]:
+                indexes_memo.remove(index_text) 
 
         if len(indexes_memo) == 0:
             return True
@@ -173,3 +173,28 @@ def check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slidel
         if len(not_used_indexes) == 0:
             return True
     return InvalidItem(type="添え字不足", message=f'傍線部の添え字{str(not_used_indexes)}が設問の中で参照されていません')
+
+def get_question_type(question_text:str):
+    """引数で与えられた問題文から、選択問題か記述問題かを取得する"""
+    return src.llm_util.get_question_type(question_text)["type"]
+
+def check_question2choices_mapping(question_text:str):
+    """設問文にある選択肢のバリエーションが実際の選択肢に存在するかをチェックする
+    """
+    results =  src.llm_util.check_question2choices_mapping(question_text)
+    InvalidItems = []
+    for result in results:
+        InvalidItems.append(InvalidItem(type=result["type"], message=result["message"]))
+    return InvalidItems
+
+def check_choices2question_mapping(question_text:str):
+    """実際の選択肢のバリエーションが設問文に存在するかをチェックする
+    """
+    results =  src.llm_util.check_choices2question_mapping(question_text)
+    InvalidItems = []
+    for result in results:
+        InvalidItems.append(InvalidItem(type=result["type"], message=result["message"]))
+    return InvalidItems
+
+
+

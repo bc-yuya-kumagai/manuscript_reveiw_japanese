@@ -22,7 +22,8 @@ if __name__ == '__main__':
     if not first_question_paragraph_index:
         logger.error('問の見出しスタイルIDが見つかりませんでした')
         os._exit(1)
-        
+
+    ## 傍線関連のチェック    
     passage_side_line_runs = doc_util.get_underline_runs(doc, 0, first_question_paragraph_index-1)
     # question_side_lines = doc_util.get_underline_runs(doc, first_question_paragraph_index, -1)
     # 傍線部のひとつ前のrunを傍線の添え字Indexとして、添え字と傍線部のテキストをマップにする
@@ -48,6 +49,7 @@ if __name__ == '__main__':
     else:
         logger.info('傍線部の連番に飛びがない')
     # 傍線部の添え字がすべて設問の中で参照されているかをチェックする
+    # "傍線部"を含むパラグラフを取得
     slideline_questions = list(doc_util.get_paragraph_text_by_keyword(doc, "傍線部"))
 
     result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
@@ -64,6 +66,33 @@ if __name__ == '__main__':
     else:
         logger.info('設問の中の添え字が問題文中に現れる')
     
+
+
+    ## 選択肢関連のチェック
+    # 1. 選択肢問題で、設問文と選択肢は正しく対応しているか
+    #  - 設問文にある選択肢のバリエーションが実際の選択肢に存在する
+    #  - 実際の選択肢にある選択肢のバリエーションが設問文に存在する
+    #  - 
+    # 2. 設問文で言及されている選択肢の数と、実際の選択肢の数は一致しているか）。
+
+    # 設問を取得
+    # get_question_texts = doc_util.get_question_texts(doc)
+
+    # for question in get_question_texts:
+    #     logger.info(question)
+    #     if ck.get_question_type(question) == "選択式":
+    #         logger.info('選択式問題')
+    #         # 選択肢の整合性チェック
+
+    #         # 設問文にある選択肢のバリエーションが実際の選択肢に存在するか？
+    #         results = ck.check_question2choices_mapping(question)
+    #         for result in results:
+    #             invalid_list.append(result)
+
+    #         # 実際の選択肢が設問文にある選択肢のバリエーションに存在するか？
+    #         results = ck.check_choices2question_mapping(question)
+    #         for result in results:
+    #             invalid_list.append(result)
     ## エラー出力
     if invalid_list:
         for i in invalid_list:
