@@ -141,15 +141,9 @@ def check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slide
     # ”傍線部<添え字1>・<添え字2>・<添え字3>"という形式で記載されている。"・"で連結された文字列を添え字として取得する
     # 例: "二重傍線部ⓐ・ⓑの本文中における意味として最も適当なものを、次の各群の１～５のうちからそれぞれ一つずつ選び、番号で答えよ。" -> 「ⓐ」、「ⓑ」を取得する
     for line in slideline_questions:
-        # 「傍線部」を探す
-        idx = line.find(keyword)
-        if idx == -1:
-            # 傍線部なし
-            continue
-    
-        # 「傍線部xxxxxxxxx」の後ろにindexesの要素があるかを確認する
+        text_indexes_in_question_text = src.llm_util.get_text_indexes_from_question(line)
         for index_text in indexes_master: 
-            if index_text in line[idx:]:
+            if index_text in text_indexes_in_question_text:
                 indexes_memo.remove(index_text) 
 
         if len(indexes_memo) == 0:
