@@ -172,14 +172,31 @@ def get_question_type(question_text:str):
     """引数で与えられた問題文から、選択問題か記述問題かを取得する"""
     return src.llm_util.get_question_type(question_text)["type"]
 
-def check_question2choices_mapping(question_text:str):
+def get_choice_indexes(question_text:str):
+    """引数で与えられた問題文から、選択肢の添え字を取得する"""
+    return src.llm_util.get_choice_indexes(question_text)
+
+def check_choices_mapping(question_text:str):
     """設問文にある選択肢のバリエーションが実際の選択肢に存在するかをチェックする
     """
-    results =  src.llm_util.check_question2choices_mapping(question_text)
-    InvalidItems = []
-    for result in results:
-        InvalidItems.append(InvalidItem(type=result["type"], message=result["message"]))
-    return InvalidItems
+    choice_indexes = src.llm_util.get_choice_indexes_from_choices_list(question_text)
+    if not isinstance(choice_indexes, list):
+        choice_indexes = [choice_indexes]
+    question_indexes = src.llm_util.get_choice_indexes_from_question_text(question_text)
+    
+    #   設問文内の添え字が選択肢内の添え字に含まれているかをチェックする
+    for qidx in question_indexes["choices"]:
+        for choice_index in choice_indexes:
+            if qidx not in choice_index["choices"]:
+                yield InvalidItem(type="選択肢不足", message=f'設問文内の選択肢{qidx}が選択肢の一覧に存在しません')
+    #   選択肢内の添え字が設問文内の添え字に含まれているかをチェックする
+    for choice_index in choice_indexes:
+        for c_index in choice_index["choices"]:
+            if c_index not in question_indexes["choices"]:
+                yield InvalidItem(type="設問文での選択肢不足", message=f'選択肢の一覧内の選択肢{c_index}が設問文に存在しません')
+      
+      
+
 
 def check_choices2question_mapping(question_text:str):
     """実際の選択肢のバリエーションが設問文に存在するかをチェックする

@@ -67,7 +67,6 @@ if __name__ == '__main__':
         logger.info('設問の中の添え字が問題文中に現れる')
     
 
-
     ## 選択肢関連のチェック
     # 1. 選択肢問題で、設問文と選択肢は正しく対応しているか
     #  - 設問文にある選択肢のバリエーションが実際の選択肢に存在する
@@ -76,23 +75,17 @@ if __name__ == '__main__':
     # 2. 設問文で言及されている選択肢の数と、実際の選択肢の数は一致しているか）。
 
     # 設問を取得
-    # get_question_texts = doc_util.get_question_texts(doc)
+    get_question_texts = doc_util.get_question_texts(doc)
 
-    # for question in get_question_texts:
-    #     logger.info(question)
-    #     if ck.get_question_type(question) == "選択式":
-    #         logger.info('選択式問題')
-    #         # 選択肢の整合性チェック
+    for question in get_question_texts:
+        logger.info(question)
+        if ck.get_question_type(question) == "選択式":
+            logger.info('選択式問題')
+            # 選択肢の整合性チェック
+            errors = ck.check_choices_mapping(question)
+            for error in errors:
+                invalid_list.append(error)
 
-    #         # 設問文にある選択肢のバリエーションが実際の選択肢に存在するか？
-    #         results = ck.check_question2choices_mapping(question)
-    #         for result in results:
-    #             invalid_list.append(result)
-
-    #         # 実際の選択肢が設問文にある選択肢のバリエーションに存在するか？
-    #         results = ck.check_choices2question_mapping(question)
-    #         for result in results:
-    #             invalid_list.append(result)
     ## エラー出力
     if invalid_list:
         for i in invalid_list:

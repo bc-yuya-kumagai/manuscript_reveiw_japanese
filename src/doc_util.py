@@ -65,11 +65,10 @@ def get_question_texts(doc:Document):
             # 次の問に到達した場合は、現時点の設問文をリストに追加し、設問文を初期化する
             if len(question_text) > 0:
                 questions.append(question_text)
-                question_text = ""
-            # 設問文を追加、
-            question_text += p.text
-        if len(question_text) > 0:
-            question_text += p.text
+            question_text = p.text+"\n"
+
+        elif len(question_text) > 0:
+            question_text += (p.text+"\n")
     return questions
 
 def split_exam_2_sections(doc:Document):
