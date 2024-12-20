@@ -1,26 +1,37 @@
 import unittest
 # src配下のreview.pyをimportする
-from src.review import can_construct_from_index_lists
+from src.check import can_construct_from_index_lists
 
 
 class TestCanConstructFromIndexLists(unittest.TestCase):
     def test_empty_index_lists(self):
-        self.assertTrue(can_construct_from_index_lists([]))
+        results =   can_construct_from_index_lists([],0)
+        # 空のリストが返ってきたらOK
+        self.assertEqual(len(results), 0)
 
     def test_single_character_match(self):
-        self.assertTrue(can_construct_from_index_lists(["a"]))  
+        results = can_construct_from_index_lists(["a"],0)
+         # 空のリストが返ってきたらOK
+        self.assertEqual(len(results), 0)
 
     def test_single_character_no_match(self):
-        self.assertFalse(can_construct_from_index_lists(["xx"]))
+        results = can_construct_from_index_lists(["xx"],0)
+        # 空のリストが返ってきたらOK
+        self.assertEqual(len(results), 1)
 
     def test_multiple_characters_match(self):
-        self.assertTrue(can_construct_from_index_lists(["a", "b"]))
+        results =can_construct_from_index_lists(["a", "b"],0)
+        # 空のリストが返ってきたらOK
+        self.assertEqual(len(results), 0)
 
     def test_multiple_characters_no_match(self):
-        self.assertFalse(can_construct_from_index_lists(["1","a","b","x"]))
-
+        results = can_construct_from_index_lists(["1","a","b","x"],0)
+        
+        self.assertEqual(len(results), 1)
+    
     def test_complex_case(self):
-        self.assertTrue(can_construct_from_index_lists(["1","a","b","あ","い","う"]))
+        results = can_construct_from_index_lists(["1","a","b","あ","い","う"],0)
+        self.assertEqual(len(results), 0)
 
 if __name__ == '__main__':
     unittest.main()

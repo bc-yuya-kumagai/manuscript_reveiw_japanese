@@ -1,10 +1,12 @@
 import json
+from typing import List
 
 import requests
 # dotenvを利用して環境変数を読み込む
 from dotenv import load_dotenv
 import os
 import logging
+from pydantic import BaseModel
 load_dotenv()
 
 
@@ -59,18 +61,23 @@ def get_text_indexes_from_question(question_text:str):
 
     # payloadを作成
     payload = qreate_task__payload(task_text, question_text) 
-    
-    # リクエストを送信
-    response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+    try:
+        # リクエストを送信
+        response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+        if response.status_code != 200:
+            logger.error(f"response[{response.json()}]")
+            raise Exception(f"response[{response.json()}]")  
+        # レスポンスからcontentの文字列を取得
+        response_content = response.json()['choices'][0]['message']['content']
 
-    # レスポンスからcontentの文字列を取得
-    response_content = response.json()['choices'][0]['message']['content']
+        # contentをJSONとしてパースしてPythonのリストに変換
+        parsed_content = json.loads(response_content)
 
-    # contentをJSONとしてパースしてPythonのリストに変換
-    parsed_content = json.loads(response_content)
+        return parsed_content['result']
 
-    return parsed_content['result']
-
+    except Exception as e:
+        ogger.error(f"response[{response.json()}]")
+    raise e
 def get_question_type(question_text:str):
     """引数で与えられた問題文から、選択問題か記述問題かを取得する"""
     task_text="""あなたは、この設問が選択式か、記述式かを以下のJSON形式
@@ -96,35 +103,40 @@ def get_question_type(question_text:str):
 
     # payloadを作成
     payload = qreate_task__payload(task_text, question_text) 
-    
-    # リクエストを送信
-    response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+    try:
+        # リクエストを送信
+        response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+        if response.status_code != 200:
+            logger.error(f"response[{response.json()}]")
+            raise Exception(f"response[{response.json()}]")
+        # レスポンスからcontentの文字列を取得
+        response_content = response.json()['choices'][0]['message']['content']
 
-    # レスポンスからcontentの文字列を取得
-    response_content = response.json()['choices'][0]['message']['content']
+        # contentをJSONとしてパースしてPythonのリストに変換
+        parsed_content = json.loads(response_content)
+        
+        return parsed_content
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+    raise e    
 
-    # contentをJSONとしてパースしてPythonのリストに変換
-    parsed_content = json.loads(response_content)
-    
-    return parsed_content
+class ChoiceINdexesFromChoices(BaseModel):
+    def __init__(self, head_line:str, choices:List[str]):
+        self.head_line = head_line
+        self.choices = choices
+class ChoiceIndexesFromChoicesList(BaseModel):
+    def __init__(self, choice_indexes:List[ChoiceINdexesFromChoices]):
+        self.choice_indexes = choice_indexes
+
 
 def get_choice_indexes_from_choices_list(question_text:str):
     """選択肢のインデックスを取得する"""
     task_text = """選択肢を含んだ設問が与えられますので、あなたはその設問文中から、選択肢の見出しとその下の選択肢のインデックスをすべてピックアップしてください。
-    その際、形式はJSONの配列形式となります。
-    [{"head_line":"<選択肢見出しのテキスト>","choices":["<選択肢１>","<選択肢２>","<選択肢３>","<選択肢４>","<選択肢５>"]}]
-    要素数が1の場合もオブジェクトではなく、配列で返してください。
-    要素数が0の場合は空の配列を返してください。
-   選択肢見出しが存在しない場合は、head_lineには空文字を設定してください。
-
-設問中の選択肢は
-"本文中における意味として最も適当なものを1,2,3,4,5のうちからそれぞれ一つずつ選び、番号で答えよ。"
-    のように個別に列挙される場合と
-"本文中における意味として最も適当なものを1～5のうちからそれぞれ一つずつ選び、番号で答えよ。" 
-のように範囲指定される場合があります。範囲指定された場合は、範囲内の選択肢がすべて存在するかを確認してください。
-設問文で示される選択肢が、すべて実際の選択肢に存在する場合は空のリスト
-[]
-を回答してください。
+その際、形式はJSONの配列形式となります。
+[{"head_line":"<選択肢見出しのテキスト>","choices":["<インデックス１>","<インデックス２>","<インデックス３>","<インデックス４>","<インデックス５>"]}]
+要素数が1の場合もオブジェクトではなく、配列で返してください。
+要素数が0の場合は空の配列を返してください。
+選択肢見出しが存在しない場合は、head_lineには空文字を設定してください。
 
 選択式の列挙形式には複数のパターンがあるので、以下の例を参考にしてください。
 1. 選択肢見出しが存在しない、フラットに並んだ文字列の行頭に番号があるもの
@@ -205,27 +217,33 @@ def get_choice_indexes_from_choices_list(question_text:str):
     """
     # payloadを作成
     payload = qreate_task__payload(task_text, question_text) 
+
     logger.info(f"payload[{json.dumps(payload,ensure_ascii=False)}]")
+    try:
+        # リクエストを送信
+        response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+        if response.status_code != 200:
+            logger.error(f"response[{response.json()}]")
+            raise Exception(f"response[{response.json()}]")
+        # レスポンスからcontentの文字列を取得
+        response_content = response.json()['choices'][0]['message']['content']
+        # contentをJSONとしてパースしてPythonのリストに変換
+        parsed_content = json.loads(response_content)
+        # parsed_contentが配列かどうかをチェック
+        
+        if not isinstance(parsed_content, list):
+            parsed_content = [parsed_content]
 
-    # リクエストを送信
-    response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
-
-    # レスポンスからcontentの文字列を取得
-    response_content = response.json()['choices'][0]['message']['content']
-    # contentをJSONとしてパースしてPythonのリストに変換
-    parsed_content = json.loads(response_content)
-    # parsed_contentが配列かどうかをチェック
-    if not isinstance(parsed_content, list):
-        parsed_content = [parsed_content]
-
-    logger.info(parsed_content)
-    return parsed_content
-
+        logger.info(parsed_content)
+        return parsed_content
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
 def get_choice_indexes_from_question_text(question_text:str):
     """設問文から選択肢のバリエーションを取得する"""
-    task_text = """選択肢を含んだ設問が与えられます。前半に設問文があり、後半に選択肢の具体的な内容が記載されています。あなたは前半設問文の中から選択肢の見出しリストを作成してください。。
+    task_text = """選択肢を含んだ設問が与えられます。前半に設問文があり、後半に選択肢の具体的な内容が記載されています。あなたは前半設問文の中から選択肢インデックスのリストを作成してください。。
 その際、形式はJSONの配列形式となります。
-{"question":"設問文", "choices":["<選択肢１>","<選択肢２>","<選択肢３>","<選択肢４>","<選択肢５>"]}
+{"question":"設問文中のインデックスのリスト抽出の選択肢の根拠となる箇所", "choices":["<選択肢インデックス１>","<選択肢インデックス２>","<選択肢インデックス３>","<選択肢インデックス４>","<選択肢インデックス５>"]}
  
 例えば、設問が以下のような場合
 問一　二重傍線部ⓐ・ⓑの本文中における意味として最も適当なものを、次の各群の１～５のうちからそれぞれ一つずつ選び、番号で答えよ。
@@ -238,7 +256,7 @@ def get_choice_indexes_from_question_text(question_text:str):
 "問一　二重傍線部ⓐ・ⓑの本文中における意味として最も適当なものを、次の各群の１～５のうちからそれぞれ一つずつ選び、番号で答えよ。"
 の部分が設問文に当たり、
 "１～５のうちからそれぞれ一つずつ選び、"との記述があるため、以下のように回答してください。
-{"question":"問一　二重傍線部ⓐ・ⓑの本文中における意味として最も適当なものを、次の各群の１～５のうちからそれぞれ一つずつ選び、番号で答えよ。","choices":["１","２","３","４","５"]}
+{"question":"１～５","choices":["１","２","３","４","５"]}
 となります。
 設問文以外の箇所については無視してください。
 問三  二重傍線部Aの本文中における意味として最も適当なものを、次の各群の１～５のうちからそれぞれ一つずつ選び、番号で答えよ。
@@ -247,7 +265,7 @@ def get_choice_indexes_from_question_text(question_text:str):
 ⓐ  しごく 無造作に   
                       ３  すぐに目標を定めて
 という設問文が与えられた場合の解答は以下のように回答してください
-{"question":"問三  二重傍線部Aの本文中における意味として最も適当なものを、次の各群の１～５のうちからそれぞれ一つずつ選び、番号で答えよ。", "choices":["１","２","３","４","５"]}
+{"question":"１～５", "choices":["１","２","３","４","５"]}
 
 
 応答の際、以下の場合に気を付けてください
@@ -258,15 +276,21 @@ def get_choice_indexes_from_question_text(question_text:str):
     # payloadを作成
     payload = qreate_task__payload(task_text, question_text)
     logger.info(f"payload[{json.dumps(payload,ensure_ascii=False)}]")
-    # リクエストを送信
-    response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
-    # レスポンスからcontentの文字列を取得
-    response_content = response.json()['choices'][0]['message']['content']
-    # parsed_contentが配列かどうかをチェック
-    parsed_content = json.loads(response_content)
+    try:
+        # リクエストを送信
+        response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+        if response.status_code != 200:
+            logger.error(f"response[{response.json()}]")
+            raise Exception(f"response[{response.json()}]")        
+        # レスポンスからcontentの文字列を取得
+        response_content = response.json()['choices'][0]['message']['content']
+        # parsed_contentが配列かどうかをチェック
+        parsed_content = json.loads(response_content)
 
-    return parsed_content
-
+        return parsed_content
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
 
 def check_choices2question_mapping(question_text:str):
     """実際の選択肢のバリエーションが設問文に存在するかをチェックする"""
@@ -303,14 +327,20 @@ def check_choices2question_mapping(question_text:str):
     # payloadを作成
     payload = qreate_task__payload(task_text, question_text) 
     logger.info(f"payload[{json.dumps(payload,ensure_ascii=False)}]")
-    # リクエストを送信
-    response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
-
-    # レスポンスからcontentの文字列を取得
-    response_content = response.json()['choices'][0]['message']['content']
-    # contentをJSONとしてパースしてPythonのリストに変換
-    parsed_content = json.loads(response_content)
-    if not isinstance(parsed_content, list):
-        parsed_content = [parsed_content]
-    logger.info(parsed_content)
-    return parsed_content
+    try:
+        # リクエストを送信
+        response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+        if response.status_code != 200:
+            logger.error(f"response[{response.json()}]")
+            raise Exception(f"response[{response.json()}]")
+        # レスポンスからcontentの文字列を取得
+        response_content = response.json()['choices'][0]['message']['content']
+        # contentをJSONとしてパースしてPythonのリストに変換
+        parsed_content = json.loads(response_content)
+        if not isinstance(parsed_content, list):
+            parsed_content = [parsed_content]
+        logger.info(parsed_content)
+        return parsed_content
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e

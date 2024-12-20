@@ -43,11 +43,13 @@ if __name__ == '__main__':
         logger.info('傍線部の添え字が重複していない')
         
     # 傍線部の連番に飛びがないかチェックする
-    check_jumped_index_result =  ck.check_jumped_index(passage_sideLine_list)
-    if isinstance(check_jumped_index_result,InvalidItem):
-        invalid_list.append(check_jumped_index_result)
-    else:
+    check_jumped_index_results =  ck.check_jumped_index(passage_sideLine_list)
+    if len(check_jumped_index_results) == 0:
         logger.info('傍線部の連番に飛びがない')
+    else
+        for check_jumped_index_result in check_jumped_index_results:
+            invalid_list.append(check_jumped_index_result)
+
     # 傍線部の添え字がすべて設問の中で参照されているかをチェックする
     # "傍線部"を含むパラグラフを取得
     slideline_questions = list(doc_util.get_paragraph_text_by_keyword(doc, "傍線部"))

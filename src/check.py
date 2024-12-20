@@ -1,6 +1,7 @@
 # チェック系の関数をまとめたモジュール
 import logging
 import re
+from typing import List
 import src.llm_util
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -58,64 +59,32 @@ VALID_INDEX_LIST_SET = [
 blackets = ['(', ')', '（', '）','「', '」', '『', '』', '【', '】', '[', ']']
 
 
-def can_construct_from_index_lists(input_list):
-    # 再帰的またはメモ化して解く方法が自然
-    # DPやバックトラックで実装できるが、ここではバックトラックで簡単に書く
-
-    if len(input_list)==0:
-        return None
-    
-    # メモ化用の辞書
-    memo = {}
-
-    def backtrack(start_index):
-        # 入力リストをすべてカバーできたらTrue
-        if start_index == len(input_list):
-            return True
-
-        # メモチェック
-        if start_index in memo:
-            return memo[start_index]
-
-        # ここからindex_list_setを調べていく
-        for candidate in VALID_INDEX_LIST_SET:
-            # candidateがinput_list[start_index:]の先頭にマッチするか確認
-            candidate_length = len(candidate)
-            # 入力リストの範囲内かつcandidateが完全一致するか
-            if start_index + candidate_length <= len(input_list) and input_list[start_index:start_index+candidate_length] == candidate:
-                # マッチした場合は、その後続が成立するかを再帰的に確認
-                if backtrack(start_index + candidate_length):
-                    memo[start_index] = True
-                    return True
+def can_construct_from_index_lists(input_list,offset:int)->List[InvalidItem]:
+    """input_listがVALID_INDEX_LIST_SETのリストのサブリストの先頭から始まる配列で構成されているかをチェックする
+    """
+    max_match_index = 0
+    if offset >= len(input_list):
+        return []
+    for valid_index_list in VALID_INDEX_LIST_SET:
+        for i in range(min(len(input_list[offset:]), len(valid_index_list))):
+            # valid_index_list[:i+1]がinput_listの先頭からi+1個の要素と一致するかをチェックする
+            if input_list[offset:offset+i+1] == valid_index_list[:i+1]:
+                max_match_index += 1
+                logger.info(f'一致：{input_list[offset:offset+i+1]}')
+                continue
             else:
-                # 部分的なマッチ（先頭から一致するが全部はマッチしない）を考慮するため、
-                # candidateと入力リストの先頭部分がどこまで一致するかを見て、
-                # 一致した部分だけでよいのか確認する必要がある。
+                # 一致しない場合は、次のVALID_INDEX_LIST_SETのリストをチェックする
+                break
+    if max_match_index == 0:
+        return [InvalidItem(type="添え字不正", message=f'添え字が不正です:{input_list[offset]}')]
+    elif offset+max_match_index == len(input_list):
+        return []
+    
+    result = can_construct_from_index_lists(input_list,offset+max_match_index)
 
-                # candidateを短く切り詰めながら先頭一致を探る
-                # 例えば candidateが ["a","b","c","d","e"] で
-                # input_listが ["a","1","2","3","4"] の場合
-                # まず "a" は一致するが、その先は合わない
-                # よって "a" だけを使い、その後に続く["1","2","3","4"]を次に回す
-                match_len = 0
-                for i in range(min(candidate_length, len(input_list)-start_index)):
-                    if candidate[i] == input_list[start_index + i]:
-                        match_len += 1
-                    else:
-                        break
-                # match_lenが0でなければ、その部分列だけ使用して次へ進める
-                if match_len > 0:
-                    if backtrack(start_index + match_len):
-                        memo[start_index] = True
-                        return True
+    return result
 
-        memo[start_index] = False
-        if start_index > 0:
-            return InvalidItem(type="添え字飛び", message=f'添え字「{input_list[start_index]}」と「{input_list[start_index]}」の間に飛びがあります')
-
-    return backtrack(0)
-
-def check_jumped_index(passage_sideLine_list):
+def check_jumped_index(passage_sideLine_list) -> List[InvalidItem]:
     """リストから飛び番号を取得する
     """
     
@@ -126,8 +95,8 @@ def check_jumped_index(passage_sideLine_list):
         striped_set.add(re.sub(pattern, '', item.index_text))
  
     sorted_index_list = sorted(striped_set)
-    logger.info(can_construct_from_index_lists(sorted_index_list))
-    return can_construct_from_index_lists(sorted_index_list)
+
+    return can_construct_from_index_lists(sorted_index_list,0)
 
 
 
@@ -144,7 +113,8 @@ def check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slide
         text_indexes_in_question_text = src.llm_util.get_text_indexes_from_question(line)
         for index_text in indexes_master: 
             if index_text in text_indexes_in_question_text:
-                indexes_memo.remove(index_text) 
+                if index_text in indexes_memo:
+                    indexes_memo.remove(index_text) 
 
         if len(indexes_memo) == 0:
             return True
@@ -177,24 +147,28 @@ def get_choice_indexes(question_text:str):
     return src.llm_util.get_choice_indexes(question_text)
 
 def check_choices_mapping(question_text:str):
-    """設問文にある選択肢のバリエーションが実際の選択肢に存在するかをチェックする
-    """
-    choice_indexes = src.llm_util.get_choice_indexes_from_choices_list(question_text)
-    if not isinstance(choice_indexes, list):
-        choice_indexes = [choice_indexes]
-    question_indexes = src.llm_util.get_choice_indexes_from_question_text(question_text)
-    
-    #   設問文内の添え字が選択肢内の添え字に含まれているかをチェックする
-    for qidx in question_indexes["choices"]:
+    try:
+        """設問文にある選択肢のバリエーションが実際の選択肢に存在するかをチェックする
+        """
+        # 選択肢リストの中から選択肢の添え字を取得する
+        choice_indexes = src.llm_util.get_choice_indexes_from_choices_list(question_text)
+
+        # 設問文の文章の中から、選択肢の添え字を取得する
+        question_indexes = src.llm_util.get_choice_indexes_from_question_text(question_text)
+        
+        #   設問文内の添え字が選択肢内の添え字に含まれているかをチェックする
+        for qidx in question_indexes["choices"]:
+            for choice_index in choice_indexes:
+                if qidx not in choice_index["choices"]:
+                    yield InvalidItem(type="選択肢不足", message=f'設問文内の選択肢{qidx}が選択肢の一覧に存在しません')
+        #   選択肢内の添え字が設問文内の添え字に含まれているかをチェックする
         for choice_index in choice_indexes:
-            if qidx not in choice_index["choices"]:
-                yield InvalidItem(type="選択肢不足", message=f'設問文内の選択肢{qidx}が選択肢の一覧に存在しません')
-    #   選択肢内の添え字が設問文内の添え字に含まれているかをチェックする
-    for choice_index in choice_indexes:
-        for c_index in choice_index["choices"]:
-            if c_index not in question_indexes["choices"]:
-                yield InvalidItem(type="設問文での選択肢不足", message=f'選択肢の一覧内の選択肢{c_index}が設問文に存在しません')
-      
+            for c_index in choice_index["choices"]:
+                if c_index not in question_indexes["choices"]:
+                    yield InvalidItem(type="設問文での選択肢不足", message=f'選択肢の一覧内の選択肢{c_index}が設問文に存在しません')
+    except Exception as e:
+        logger.error(f'エラー：{e}: {question_text}')  
+        raise e
       
 
 
