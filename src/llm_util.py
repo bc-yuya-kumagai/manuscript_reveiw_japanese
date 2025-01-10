@@ -76,8 +76,8 @@ def get_text_indexes_from_question(question_text:str):
         return parsed_content['result']
 
     except Exception as e:
-        ogger.error(f"response[{response.json()}]")
-    raise e
+        logger.error(f"response[{response.json()}]")
+        raise e
 def get_question_type(question_text:str):
     """引数で与えられた問題文から、選択問題か記述問題かを取得する"""
     task_text="""あなたは、この設問が選択式か、記述式かを以下のJSON形式

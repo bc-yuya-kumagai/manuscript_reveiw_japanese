@@ -76,11 +76,13 @@ if __name__ == '__main__':
     #  - 
     # 2. 設問文で言及されている選択肢の数と、実際の選択肢の数は一致しているか）。
 
-    # 設問を取得
-    get_question_texts = doc_util.get_question_texts(doc)
+    
+    # 問とごのフレーズのリストを取得
+    questions= doc_util.get_questions(doc)
 
-    for question in get_question_texts:
-        logger.info(question)
+    for question in questions:
+        questjion_text = '\n'.join([q.text for q in question])
+        logger.info(questjion_text)
         if ck.get_question_type(question) == "選択式":
             logger.info('選択式問題')
             # 選択肢の整合性チェック

@@ -3,6 +3,7 @@ import logging
 import re
 from typing import List
 import src.llm_util
+from docx.text.paragraph import Paragraph
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,7 +49,8 @@ def check_duplicated_index(passage_sideLine_list):
 # 以下のリストは、添え字のリストのセットを表す
 # 前提条件: 問題文中の添え字や添え字の囲み記号はあらかじめ決められた範囲内であること（出現前範囲が予測できること）
 VALID_INDEX_LIST_SET = [
-    ["1","2","3","4","5","6"],
+    ["1","2","3","4","5","6","7","8","9","10"],
+    ["１","２","３","４","５","６","７","８","９","１０"],
     ["あ","い","う","え","お"],
     ["ア","イ","ウ","エ","オ"],
     ["ｱ","ｲ","ｳ","ｴ","ｵ"],
@@ -83,6 +85,29 @@ def can_construct_from_index_lists(input_list,offset:int)->List[InvalidItem]:
     result = can_construct_from_index_lists(input_list,offset+max_match_index)
 
     return result
+
+def check_choice_index_sequence(choice_indexes):
+    """選択肢の添え字が連番で記載されているかをチェックする
+    """
+    offset = 0
+    standard_sequences= (["１","２","３","４","５","６","７","８","９","１０"], ["1","2","3","4","5","6","7","8","9","10"])
+    standard_sequence = None
+    for ss in standard_sequences:
+        if set(choice_indexes).issubset(set(ss)):
+            standard_sequence = ss
+            break
+    if standard_sequence is None:
+        return InvalidItem(type="選択肢不正", message=f'選択肢の添え字が規定外の文字種です:{choice_indexes}')
+    
+    for ci in choice_indexes:
+        if ci == standard_sequence[offset]:
+            offset += 1
+        elif offset == 0:
+            return InvalidItem(type="選択肢不正", message=f'選択肢の添え字が不正です:{ci}')
+        else:  
+            offset = 0
+
+
 
 def check_jumped_index(passage_sideLine_list) -> List[InvalidItem]:
     """リストから飛び番号を取得する
@@ -146,26 +171,26 @@ def get_choice_indexes(question_text:str):
     """引数で与えられた問題文から、選択肢の添え字を取得する"""
     return src.llm_util.get_choice_indexes(question_text)
 
-def check_choices_mapping(question_text:str):
+def check_choices_mapping(question_phrases:str):
     try:
         """設問文にある選択肢のバリエーションが実際の選択肢に存在するかをチェックする
         """
+        question_text = '\n'.join([q.text for q in question_phrases])
         # 選択肢リストの中から選択肢の添え字を取得する
-        choice_indexes = src.llm_util.get_choice_indexes_from_choices_list(question_text)
+        # 空文字にスタイルが入っていることがあるので無視する
+        choice_indexes = [i for i in src.doc_util.get_choice_indexes_from_choices_list(question_phrases) if i != ""]
 
         # 設問文の文章の中から、選択肢の添え字を取得する
         question_indexes = src.llm_util.get_choice_indexes_from_question_text(question_text)
         
         #   設問文内の添え字が選択肢内の添え字に含まれているかをチェックする
         for qidx in question_indexes["choices"]:
-            for choice_index in choice_indexes:
-                if qidx not in choice_index["choices"]:
-                    yield InvalidItem(type="選択肢不足", message=f'設問文内の選択肢{qidx}が選択肢の一覧に存在しません')
+                    if qidx not in choice_indexes:
+                        yield InvalidItem(type="選択肢不足", message=f'設問文内の選択肢{qidx}が選択肢の一覧に存在しません')
         #   選択肢内の添え字が設問文内の添え字に含まれているかをチェックする
         for choice_index in choice_indexes:
-            for c_index in choice_index["choices"]:
-                if c_index not in question_indexes["choices"]:
-                    yield InvalidItem(type="設問文での選択肢不足", message=f'選択肢の一覧内の選択肢{c_index}が設問文に存在しません')
+                if choice_index not in question_indexes["choices"]:
+                    yield InvalidItem(type="設問文での選択肢不足", message=f'選択肢の一覧内の選択肢{choice_index}が設問文に存在しません')
     except Exception as e:
         logger.error(f'エラー：{e}: {question_text}')  
         raise e
@@ -181,5 +206,23 @@ def check_choices2question_mapping(question_text:str):
         InvalidItems.append(InvalidItem(type=result["type"], message=result["message"]))
     return InvalidItems
 
+def check_choices_sequence(question_phrases:str):
+    """選択肢が連番で記載されているかをチェックする
+    """
+    # 選択肢リストの中から選択肢の添え字を取得する
+    # 空文字にスタイルが入っていることがあるので無視する
+    choice_indexes = [i for i in src.doc_util.get_choice_indexes_from_choices_list(question_phrases) if i != ""]
 
+    choice_indexes.count
 
+    result = check_choice_index_sequence(choice_indexes)
+    return InvalidItem(type=result.type, message=result.message)
+
+def check_font_of_unfit_item(paragraphs:List[Paragraph]):
+    """「適当でないもの」がMSゴシックであるかチェックする
+    """
+    for paragraph in paragraphs:
+        hit_indexis = src.doc_util.find_continuous_run_indices(paragraph=paragraph, target="適当でないもの")
+        # hit_indexisに該当するrunのフォントがMSゴシックであるかをチェックする 1つでもMSゴシックでないものがあればエラー
+        if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
+            return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')

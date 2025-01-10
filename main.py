@@ -63,13 +63,28 @@ def analyze_docx(docx_file_path: str):
     if isinstance(result_sl_mapping, InvalidItem):
         invalid_list.append(result_sl_mapping)
 
-    # 選択肢関連チェック
-    get_question_texts = doc_util.get_question_texts(doc)
-    for question in get_question_texts:
-        if ck.get_question_type(question) == "選択式":
+    # 問のテキストを設問ごとにリストでの取得
+    question_texts = doc_util.get_questions(doc)
+    # 選択肢のチェック
+    for question in question_texts:
+        question_text = "\n".join([q.text for q in question])
+        if ck.get_question_type(question_text) == "選択式":
             errors = ck.check_choices_mapping(question)
             invalid_list.extend(errors)
     
+    # 選択肢に重複や歯抜けがないかチェック
+    for question in question_texts:
+        question_text = "\n".join([q.text for q in question])
+        if ck.get_question_type(question_text) == "選択式":
+            errors = ck.check_choices_sequence(question)
+            invalid_list.append(errors)
+    # 「適当でないもの」がMSゴシックであるかチェック
+    for question in question_texts:
+        result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
+        if isinstance(result_check_font_of_unfit_item, InvalidItem):
+            invalid_list.append(result_check_font_of_unfit_item)
+
+
     # 結果整形
     result = {"errors":[]}
     if invalid_list:

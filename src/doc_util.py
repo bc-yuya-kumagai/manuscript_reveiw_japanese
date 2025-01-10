@@ -1,6 +1,8 @@
 # Wordファイルの解析に関するユーティリティ関数を提供するモジュール
 
+from typing import List
 from docx import Document
+from docx.text.paragraph import Paragraph
 
 
 # 問の見出しスタイルID
@@ -13,7 +15,8 @@ def get_underline_runs(doc,first_paragraph_index:int,last_paragraph_index:int):
     runs = []
     for p in doc.paragraphs[first_paragraph_index:last_paragraph_index]:
         for run in p.runs:
-            if run.underline:
+            # スタイルが1-5-10または1-5-20の場合は下線部として抽出
+            if run.style.style_id == '1-5-10':
                 runs.append(run)
     return runs
 
@@ -54,21 +57,22 @@ def get_first_question_paragraph_index(doc):
         if p.text.startswith("問"):
             return i
         
-def get_question_texts(doc:Document):
-    """docから問から次の問までのテキストを取得する
+def get_questions(doc:Document)->List[Paragraph]:
+    """docから問から次の問までのPhraseを取得する
     """
     questions=[]
-    question_text = ""
+    question_phrases = []
     for p in doc.paragraphs:
         
         if p.text.startswith("問"):
             # 次の問に到達した場合は、現時点の設問文をリストに追加し、設問文を初期化する
-            if len(question_text) > 0:
-                questions.append(question_text)
-            question_text = p.text+"\n"
+            if len(question_phrases) > 0:
+                questions.append(question_phrases)
+            question_phrases=[p]
 
-        elif len(question_text) > 0:
-            question_text += (p.text+"\n")
+        elif len(question_phrases) > 0:
+            question_phrases.append(p)
+    questions.append(question_phrases)
     return questions
 
 def split_exam_2_sections(doc:Document):
@@ -100,3 +104,52 @@ def get_paragraph_text_by_keyword(doc:Document,word:str):
     for p in doc.paragraphs:
         if word in p.text:
             yield p.text
+
+def get_choice_indexes_from_choices_list(question_phrases):
+    """選択肢のリストから選択肢の添え字を取得する
+    """
+    indexes = []
+    for p in question_phrases:
+        # フレーズ内で <w:rStyle w:val="2-3-10"/>であるrunを取得する
+        for run in p.runs:
+            if run.style.style_id == '2-3-10':
+                indexes.append(run.text)
+        
+    return indexes
+
+def find_continuous_run_indices(paragraph:Paragraph, target:str):
+    """
+    Check if the target string exists as a sequence of characters across the elements
+    of the string_list and return the indices where it is found.
+
+    Args:
+        string_list (list of str): List of strings to search.
+        target (str): The target string to find.
+
+    Returns:
+        list of int: List of indices where the target string is found.
+    """
+    # Join the list into a single continuous string with a delimiter
+  
+    combined_text = "".join(r.text for r in paragraph.runs)
+    if target not in combined_text or len(target) == 0:
+        return []
+
+
+    # Determine which indices of the original list are involved
+    indices = []
+    offset = 0
+    for i, r in enumerate(paragraph.runs):
+        for c in r.text:
+            if len(c) == 0:
+                continue
+            if c == target[offset]:
+               indices.append(i)
+               offset += 1
+               if offset == len(target): # offsetがtargetの長さに達したら、後続のtargetの検索を行うため、offsetを0に戻す
+                     offset = 0
+            else:
+                offset = 0
+    # indicesの要素をユニークにする
+    return list(set(indices))
+
