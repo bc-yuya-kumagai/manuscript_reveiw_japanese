@@ -1,0 +1,27 @@
+[project]
+name = "manuscript-review"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Yuya Kumagai"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "uvicorn",
+    "fastapi",
+    "python-docx",
+    "python-dotenv",
+    "python-multipart"
+]
+
+packages = [
+    { include = "manuscript_review" }
+]
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
