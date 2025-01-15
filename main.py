@@ -18,8 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logger = logging.getLogger(__name__)
+# ロギングの設定を最初に行う
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def analyze_docx(docx_file_path: str):
     """
@@ -28,19 +29,19 @@ def analyze_docx(docx_file_path: str):
     """
     doc = Document(docx_file_path)
 
-    # 問の見出しが最初に始まる箇所を特定
+    # 問の見出しが最初に始まる箇所を特定 <- これが、問題文と設問の境界になる
     first_question_paragraph_index:int = doc_util.get_first_question_paragraph_index(doc)
     if not first_question_paragraph_index:
         return {"errors":[{"type":"INDEX_NOT_FOUND","message":"問の見出しスタイルIDが見つかりませんでした"}]}
     
-    # 傍線部取得
+    # 傍線部取得（問題文の中から傍線部のrunを取得）
     passage_side_line_runs = doc_util.get_underline_runs(doc, 0, first_question_paragraph_index-1)
 
     passage_sideLine_list = []
     for run in passage_side_line_runs:
         passage_sideLine_list.append( SideLine(index_text=doc_util.get_previous_text_index_run(run).text, passage=run.text))
 
-    # ページ区切り等による添字のクリーニング
+    # ページ区切り箇所にゴミが残るのでそれを削除
     passage_sideLine_list = doc_util.clean_sileline_list_in_page_break(passage_sideLine_list)
     invalid_list = []
 
@@ -78,6 +79,7 @@ def analyze_docx(docx_file_path: str):
         if ck.get_question_type(question_text) == "選択式":
             errors = ck.check_choices_sequence(question)
             invalid_list.append(errors)
+            
     # 「適当でないもの」がMSゴシックであるかチェック
     for question in question_texts:
         result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
@@ -89,7 +91,9 @@ def analyze_docx(docx_file_path: str):
     result = {"errors":[]}
     if invalid_list:
         for i in invalid_list:
-            result["errors"].append({"type": i.type, "message": i.message})
+            if isinstance(i, InvalidItem):
+                result["errors"].append({"type": i.type, "message": i.message})
+
     else:
         result["message"] = "問題なし"
     return result
@@ -111,21 +115,32 @@ async def home_page():
     </html>
     """
 
+async def save_temp_file(docx_file: UploadFile) -> str:
+    """一時ファイルとしてdocxファイルを保存し、ファイルパスを返す"""
+    temp_file_path = f"temp_{docx_file.filename}"
+    with open(temp_file_path, "wb") as f:
+        f.write(await docx_file.read())
+    return temp_file_path
+
+def delete_temp_file(file_path: str):
+    """一時ファイルを削除する"""
+    try:
+        os.remove(file_path)
+    except OSError as e:
+        logger.error(f"Error deleting file {file_path}: {e}")
 
 @app.post("/upload")
 async def upload_and_check(docx_file: UploadFile = File(...)):
     if docx_file.content_type not in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="docxファイルをアップロードしてください")
 
-    # 一時ファイルとして保存
-    temp_file_path = f"temp_{docx_file.filename}"
-    with open(temp_file_path, "wb") as f:
-        f.write(await docx_file.read())
+    temp_file_path = await save_temp_file(docx_file)
 
-    # 分析実行
-    result = analyze_docx(temp_file_path)
-
-    # 一時ファイル削除
-    os.remove(temp_file_path)
+    try:
+        # 分析実行
+        result = analyze_docx(temp_file_path)
+    finally:
+        # 一時ファイル削除
+        delete_temp_file(temp_file_path)
 
     return result

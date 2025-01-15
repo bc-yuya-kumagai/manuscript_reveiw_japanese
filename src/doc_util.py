@@ -16,7 +16,7 @@ def get_underline_runs(doc,first_paragraph_index:int,last_paragraph_index:int):
     for p in doc.paragraphs[first_paragraph_index:last_paragraph_index]:
         for run in p.runs:
             # スタイルが1-5-10または1-5-20の場合は下線部として抽出
-            if run.style.style_id == '1-5-10':
+            if run.style.style_id == '1-5-10': # or run.style.style_id == '1-5-20': 二重傍線スタイル1-5-20は誤爆する？
                 runs.append(run)
     return runs
 

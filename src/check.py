@@ -216,7 +216,9 @@ def check_choices_sequence(question_phrases:str):
     choice_indexes.count
 
     result = check_choice_index_sequence(choice_indexes)
-    return InvalidItem(type=result.type, message=result.message)
+    if isinstance(result, InvalidItem):
+        return InvalidItem(type=result.type, message=result.message)
+    return None
 
 def check_font_of_unfit_item(paragraphs:List[Paragraph]):
     """「適当でないもの」がMSゴシックであるかチェックする

@@ -18,7 +18,6 @@ querystring = {"api-version":"2024-02-15-preview"}
 
 url = os.environ.get('AOAI_ENDPOINT')
 
-url = "https://ver-oai-commonoai-009.openai.azure.com/openai/deployments/ver-commonoai-gpt4o-mini/chat/completions"
 
 querystring = {"api-version":"2024-02-15-preview"}
 
