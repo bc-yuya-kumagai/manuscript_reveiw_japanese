@@ -3,6 +3,8 @@
 from typing import List
 from docx import Document
 from docx.text.paragraph import Paragraph
+from lxml import etree
+from zipfile import ZipFile
 
 
 # 問の見出しスタイルID
@@ -74,6 +76,20 @@ def get_questions(doc:Document)->List[Paragraph]:
             question_phrases.append(p)
     questions.append(question_phrases)
     return questions
+
+def extract_question_paragraphs(doc: Document) -> List[Paragraph]:
+    """
+    文書から「問」で始まるパラグラフを抽出する
+
+    Returns:
+        List[Paragraph]: 「問」で始まるParagraphオブジェクトのリスト
+    """
+    question_paragraphs = []
+    for paragraph in doc.paragraphs:
+        if paragraph.text.startswith("問"):
+            # 「問」で始まるパラグラフをリストに追加
+            question_paragraphs.append(paragraph)
+    return question_paragraphs
 
 def split_exam_2_sections(doc:Document):
     """ docを大門ごとに分割する
@@ -153,3 +169,77 @@ def find_continuous_run_indices(paragraph:Paragraph, target:str):
     # indicesの要素をユニークにする
     return list(set(indices))
 
+
+def get_style_by_id(docx_file_path: str, style_id: str) -> dict:
+    """
+    styles.xml 内の指定された styleId の設定をオブジェクト形式で返す関数。
+
+    :param docx_file_path: WORDファイルのパス
+    :param style_id: 取得したいスタイルの ID (styleId)
+    :return: スタイル設定を格納した辞書オブジェクト
+    """
+    # styles.xml を取得
+    with ZipFile(docx_file_path) as docx:
+        styles_xml = docx.read("word/styles.xml")
+    # 名前空間の定義
+    NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+
+    # styles.xml の読み込み
+    tree = etree.XML(styles_xml)
+  
+
+    # 指定された styleId を持つ <w:style> を検索
+    style_element = tree.find(f".//w:style[@w:styleId='{style_id}']", namespaces=NS)
+    if style_element is None:
+        return {"error": f"Style ID '{style_id}' not found."}
+
+    # スタイル情報を辞書に格納
+    style_info = {
+        "styleId": style_id,
+        "type": style_element.attrib.get(f"{{{NS['w']}}}type", "Not Specified"),
+        "customStyle": style_element.attrib.get(f"{{{NS['w']}}}customStyle", "0"),
+        "name": None,
+        "basedOn": None,
+        "link": None,
+        "font": {"ascii": None, "hAnsi": None, "eastAsia": None, "hint": None},
+        "color": None,
+        "size": None,
+    }
+
+    # スタイル名
+    name_element = style_element.find(f"{{{NS['w']}}}name", namespaces=NS)
+    if name_element is not None:
+        style_info["name"] = name_element.attrib.get(f"{{{NS['w']}}}val")
+
+    # 継承元スタイル
+    based_on_element = style_element.find(f"{{{NS['w']}}}basedOn", namespaces=NS)
+    if based_on_element is not None:
+        style_info["basedOn"] = based_on_element.attrib.get(f"{{{NS['w']}}}val")
+
+    # リンクされたスタイル
+    link_element = style_element.find(f"{{{NS['w']}}}link", namespaces=NS)
+    if link_element is not None:
+        style_info["link"] = link_element.attrib.get(f"{{{NS['w']}}}val")
+
+    # ランプロパティ <w:rPr> を探索
+    rpr_element = style_element.find(f"{{{NS['w']}}}rPr", namespaces=NS)
+    if rpr_element is not None:
+        # フォント情報
+        rfonts_element = rpr_element.find(f"{{{NS['w']}}}rFonts", namespaces=NS)
+        if rfonts_element is not None:
+            style_info["font"]["ascii"] = rfonts_element.attrib.get(f"{{{NS['w']}}}ascii")
+            style_info["font"]["hAnsi"] = rfonts_element.attrib.get(f"{{{NS['w']}}}hAnsi")
+            style_info["font"]["eastAsia"] = rfonts_element.attrib.get(f"{{{NS['w']}}}eastAsia")
+            style_info["font"]["hint"] = rfonts_element.attrib.get(f"{{{NS['w']}}}hint")
+
+        # 色情報
+        color_element = rpr_element.find(f"{{{NS['w']}}}color", namespaces=NS)
+        if color_element is not None:
+            style_info["color"] = color_element.attrib.get(f"{{{NS['w']}}}val")
+
+        # フォントサイズ
+        size_element = rpr_element.find(f"{{{NS['w']}}}sz", namespaces=NS)
+        if size_element is not None:
+            style_info["size"] = size_element.attrib.get(f"{{{NS['w']}}}val")
+
+    return style_info

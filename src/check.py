@@ -228,3 +228,14 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         # hit_indexisに該当するrunのフォントがMSゴシックであるかをチェックする 1つでもMSゴシックでないものがあればエラー
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
+        
+def check_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
+    """「問~」がMSゴシックかチェック
+    """
+    for paragraph in paragraphs:
+        for run in paragraph.runs:
+            if run.text.isspace() or run.text is None:
+                break
+            elif run.text:
+                if "MS Gothic" != src.doc_util.get_style_by_id(docx_file_path, run.style.style_id)["font"]["ascii"]:
+                    return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
