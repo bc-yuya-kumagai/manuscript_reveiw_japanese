@@ -1,5 +1,13 @@
 import unittest
-from src.check import check_choices_mapping, InvalidItem
+from src.check import check_choices_mapping
+from src.doc_util import  extract_question_paragraphs
+from src.check import check_heading_question_font
+from docx import Document
+
+# テスト対象のサンプルファイルパス
+SAMPLE_DOCX_PATH = "tests/resources/スタイル付_【問題A】自動原稿整理PoC_サンプル原稿（指摘箇所コメント付）.docx"
+
+
 class TestCanConstructFromIndexLists(unittest.TestCase):
     def test_check_choices_mapping_valid(self):
         """正常系のテスト - 選択肢が正しくマッピングされている場合"""
@@ -101,6 +109,17 @@ class TestCanConstructFromIndexLists(unittest.TestCase):
 """
         results = list(check_choices_mapping(question_text))
         assert len(results) == 0
+
+def test_heading_font_check():
+    """既存のサンプルファイルを用いて font_analyzer 関数をテストする。"""
+    doc = Document(SAMPLE_DOCX_PATH)
+    extract_paragraphs = extract_question_paragraphs(doc)
+
+    # check_heading_question_font の結果を確認
+    check_heading_question_font_item = check_heading_question_font(SAMPLE_DOCX_PATH, extract_paragraphs)
+
+    # 結果が None であることを期待
+    assert check_heading_question_font_item is None, f"check_heading_question_font の結果が None ではありません: {check_heading_question_font_item}"
 
 
 if __name__ == '__main__':
