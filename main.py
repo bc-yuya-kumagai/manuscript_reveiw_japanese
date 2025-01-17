@@ -92,6 +92,12 @@ def analyze_docx(docx_file_path: str):
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
 
+    # 設問番号が順番通りになっているかチェック
+    extract_paragraphs = doc_util.extract_question_paragraphs(doc)
+    check_kanji_number_order =  ck.check_kanji_question_order(extract_paragraphs)
+    if isinstance(check_kanji_number_order, InvalidItem):
+        invalid_list.append(check_kanji_number_order)
+
     # 結果整形
     result = {"errors":[]}
     if invalid_list:

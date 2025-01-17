@@ -260,3 +260,37 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+
+def check_kanji_question_order(paragraphs: List[object]) -> None:
+    """段落が「問[漢数字]」で始まり、順番通りになっているかチェック"""
+    previous_value = 0  # 前回の漢数字の数値を保持
+    kanji_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+
+    for paragraph in paragraphs:
+        text = getattr(paragraph, "text", str(paragraph))
+        if text.startswith("問"):
+            match = re.match(r"問([一二三四五六七八九十百千]+)", text)
+            if match:
+                kanji = match.group(1)
+
+                # 漢数字を数値に変換
+                value = 0
+                temp = 0
+                for char in kanji:
+                    if char in kanji_map:  # 漢数字を数値化
+                        temp = kanji_map[char]  # そのまま現在の値として保持
+                    elif char == '十':
+                        temp = max(1, temp) * 10  # 前の値を10倍（値が無ければ1を補完）
+                    else:
+                        return InvalidItem(type="漢数字順序エラー", message=f'サポートされていない漢数字です。')
+
+                value += temp
+
+                # 順番が正しいかチェック
+                if value <= previous_value:
+                    return InvalidItem(type="漢数字順序エラー", message=f'順番が間違っています。')
+
+                previous_value = value
+            else:
+                return InvalidItem(type="漢数字順序エラー", message=f'無効な形式が含まれています。')
