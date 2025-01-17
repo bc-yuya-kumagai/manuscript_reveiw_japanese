@@ -197,9 +197,9 @@ def font_analyzer(docx_file_path: str, paragraph: Paragraph):
             if rFonts is not None:
                 theme_font = rFonts.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}asciiTheme")
                 if theme_font and theme_font.startswith("minor"):
-                    theme_font = extract_font_scheme(docx_file_path)["minorFont"]["Jpan"]
+                    theme_font = find_theme_font_schemas(docx_file_path)["minorFont"]["Jpan"]
                 elif theme_font and theme_font.startswith("major"):
-                    theme_font = extract_font_scheme(docx_file_path)["majorFont"]["Jpan"]
+                    theme_font = find_theme_font_schemas(docx_file_path)["majorFont"]["Jpan"]
 
         # フォントヒエラルキー
         font_name = None
@@ -291,7 +291,7 @@ def get_style_by_id(docx_file_path: str, style_id: str) -> dict:
     return style_info
 
 
-def extract_font_scheme(word_file_path):
+def find_theme_font_schemas(word_file_path):
     """
     Wordファイルから主要フォントスキームと副次フォントスキームを抽出します。
 
@@ -347,6 +347,6 @@ def extract_font_scheme(word_file_path):
 # 使用例
 if __name__ == "__main__":
     word_file_path = "example.docx"  # Wordファイルのパスを指定
-    font_scheme = extract_font_scheme(word_file_path)
+    font_scheme = find_theme_font_schemas(word_file_path)
     print("Major Font:", font_scheme['majorFont'])
     print("Minor Font:", font_scheme['minorFont'])

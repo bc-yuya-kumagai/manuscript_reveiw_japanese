@@ -1,7 +1,7 @@
 import unittest
 from src.check import check_choices_mapping
 from src.doc_util import  extract_question_paragraphs
-from src.check import check_question_font
+from src.check import check_heading_question_font
 from docx import Document
 
 # テスト対象のサンプルファイルパス
@@ -115,11 +115,11 @@ def test_heading_font_check():
     doc = Document(SAMPLE_DOCX_PATH)
     extract_paragraphs = extract_question_paragraphs(doc)
 
-    # check_question_font の結果を確認
-    check_question_font_item = check_question_font(SAMPLE_DOCX_PATH, extract_paragraphs)
+    # check_heading_question_font の結果を確認
+    check_heading_question_font_item = check_heading_question_font(SAMPLE_DOCX_PATH, extract_paragraphs)
 
     # 結果が None であることを期待
-    assert check_question_font_item is None, f"check_question_font の結果が None ではありません: {check_question_font_item}"
+    assert check_heading_question_font_item is None, f"check_heading_question_font の結果が None ではありません: {check_heading_question_font_item}"
 
 
 if __name__ == '__main__':

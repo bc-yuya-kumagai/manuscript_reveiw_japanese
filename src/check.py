@@ -229,7 +229,7 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
         
-def check_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
+def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
     """「問~」がMSゴシックかチェック
     """
     for paragraph in paragraphs:
