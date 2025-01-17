@@ -233,9 +233,30 @@ def check_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
     """「問~」がMSゴシックかチェック
     """
     for paragraph in paragraphs:
-        for run in paragraph.runs:
-            if run.text.isspace() or run.text is None:
+        buffer = src.doc_util.font_analyzer(docx_file_path, paragraph)  # 段落内のテキスト情報を一時的に保持する
+        question_no = None  # 検出した「問〇」の番号を格納する変数
+
+        # 段落全体のテキストを結合
+        combined_text = "".join([content["text"] for content in buffer])
+
+        kanji_numbers = [
+            "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+            "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"
+        ][::-1]
+
+        # 「問〇」の形式を検出
+        for kanji in kanji_numbers:
+            keyword = f"問{kanji}"
+            if keyword in combined_text:
+                question_no = keyword
                 break
-            elif run.text:
-                if "MS Gothic" != src.doc_util.get_style_by_id(docx_file_path, run.style.style_id)["font"]["ascii"]:
+
+        # 判定
+        if question_no is not None:
+            buffer_question_no = ""
+            for content in buffer:
+                if buffer_question_no == keyword:
+                    break
+                if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
+                buffer_question_no += content["text"]

@@ -5,6 +5,7 @@ from docx import Document
 from docx.text.paragraph import Paragraph
 from lxml import etree
 from zipfile import ZipFile
+from xml.etree import ElementTree as ET
 
 
 # 問の見出しスタイルID
@@ -170,6 +171,51 @@ def find_continuous_run_indices(paragraph:Paragraph, target:str):
     return list(set(indices))
 
 
+def font_analyzer(docx_file_path: str, paragraph: Paragraph):
+    """
+    段落内のテキストとフォント情報を解析する関数。
+
+    Args:
+        docx_file_path (str): 対象のWord文書のファイルパス。
+        paragraph (Paragraph): 段落オブジェクト（`python-docx` の Paragraph クラス）。
+
+    Returns:
+        List[Dict[str, Any]]: 段落内のテキストとフォント情報のリスト。
+        各辞書は以下の形式を持つ:
+            - "text" (str): 実際のテキスト。
+            - "font" (str): フォント名。
+    """
+    buffer = []  # 段落内のテキスト情報を一時的に保持する
+    for run in paragraph.runs:
+        theme_font = None
+        r_element = run._element
+        # <w:rPr> 要素を検索
+        rPr = r_element.find(".//w:rPr", namespaces=r_element.nsmap)
+        if rPr is not None:
+            # テーマ情報 (<w:rFonts> の属性) を取得
+            rFonts = rPr.find(".//w:rFonts", namespaces=r_element.nsmap)
+            if rFonts is not None:
+                theme_font = rFonts.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}asciiTheme")
+                if theme_font and theme_font.startswith("minor"):
+                    theme_font = extract_font_scheme(docx_file_path)["minorFont"]["Jpan"]
+                elif theme_font and theme_font.startswith("major"):
+                    theme_font = extract_font_scheme(docx_file_path)["majorFont"]["Jpan"]
+
+        # フォントヒエラルキー
+        font_name = None
+        if run.font.name is None and theme_font is None:
+            font_name = get_style_by_id(docx_file_path, run.style.style_id)["font"]["ascii"]
+        elif theme_font:
+            font_name = theme_font
+        else:
+            font_name = run.font.name
+
+        buffer.append({
+            "text": run.text,
+            "font": font_name,
+        })
+    return buffer
+
 def get_style_by_id(docx_file_path: str, style_id: str) -> dict:
     """
     styles.xml 内の指定された styleId の設定をオブジェクト形式で返す関数。
@@ -243,3 +289,64 @@ def get_style_by_id(docx_file_path: str, style_id: str) -> dict:
             style_info["size"] = size_element.attrib.get(f"{{{NS['w']}}}val")
 
     return style_info
+
+
+def extract_font_scheme(word_file_path):
+    """
+    Wordファイルから主要フォントスキームと副次フォントスキームを抽出します。
+
+    Args:
+        word_file_path (str): Word (.docx) ファイルのパス。
+
+    Returns:
+        dict: 'majorFont' と 'minorFont' のキーを持つ辞書。各キーには、それぞれのフォントマッピングが含まれます。
+    """
+    # WordファイルはZIP形式で圧縮されているため、ZipFileを使用します
+    with ZipFile(word_file_path, 'r') as docx:
+        # テーマ情報は"word/theme/theme1.xml"に格納されています
+        theme_path = 'word/theme/theme1.xml'
+        if theme_path not in docx.namelist():
+            raise FileNotFoundError(f"{theme_path} not found in the Word file.")
+
+        # テーマXMLファイルを読み取ります
+        theme_xml = docx.read(theme_path)
+
+    # XMLを解析します
+    root = ET.fromstring(theme_xml)
+    namespaces = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'}
+
+    # majorFontとminorFontを探します
+    font_scheme = root.find('.//a:fontScheme', namespaces)
+    if font_scheme is None:
+        raise ValueError("Font scheme not found in the theme XML.")
+
+    major_font = {}
+    minor_font = {}
+
+    # majorFontの抽出
+    major_font_element = font_scheme.find('a:majorFont', namespaces)
+    if major_font_element is not None:
+        for font in major_font_element:
+            script = font.attrib.get('script', 'latin')
+            typeface = font.attrib.get('typeface', '')
+            major_font[script] = typeface
+
+    # minorFontの抽出
+    minor_font_element = font_scheme.find('a:minorFont', namespaces)
+    if minor_font_element is not None:
+        for font in minor_font_element:
+            script = font.attrib.get('script', 'latin')
+            typeface = font.attrib.get('typeface', '')
+            minor_font[script] = typeface
+
+    return {
+        'majorFont': major_font,
+        'minorFont': minor_font
+    }
+
+# 使用例
+if __name__ == "__main__":
+    word_file_path = "example.docx"  # Wordファイルのパスを指定
+    font_scheme = extract_font_scheme(word_file_path)
+    print("Major Font:", font_scheme['majorFont'])
+    print("Minor Font:", font_scheme['minorFont'])

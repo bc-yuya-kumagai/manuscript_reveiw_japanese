@@ -1,7 +1,8 @@
 from src.doc_util import get_style_by_id
 
+
 # テスト対象のサンプルファイルパス
-SAMPLE_DOCX_PATH = "test/samples/スタイル付_【問題A】自動原稿整理PoC_サンプル原稿（指摘箇所コメント付）.docx"
+SAMPLE_DOCX_PATH = "tests/resources/スタイル付_【問題A】自動原稿整理PoC_サンプル原稿（指摘箇所コメント付）.docx"
 
 
 def test_get_style_by_id():
@@ -33,3 +34,6 @@ def test_get_style_by_id():
     assert result == expected_style_data, (
         f"Expected {expected_style_data}, but got {result}"
     )
+
+
+

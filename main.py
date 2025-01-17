@@ -38,53 +38,53 @@ def analyze_docx(docx_file_path: str):
     passage_side_line_runs = doc_util.get_underline_runs(doc, 0, first_question_paragraph_index-1)
 
     passage_sideLine_list = []
-    for run in passage_side_line_runs:
-        passage_sideLine_list.append( SideLine(index_text=doc_util.get_previous_text_index_run(run).text, passage=run.text))
+    # for run in passage_side_line_runs:
+    #     passage_sideLine_list.append( SideLine(index_text=doc_util.get_previous_text_index_run(run).text, passage=run.text))
 
     # ページ区切り箇所にゴミが残るのでそれを削除
     passage_sideLine_list = doc_util.clean_sileline_list_in_page_break(passage_sideLine_list)
     invalid_list = []
 
-    # 傍線部の添え字重複チェック
-    invalid_list += ck.check_duplicated_index(passage_sideLine_list)
+    # # 傍線部の添え字重複チェック
+    # invalid_list += ck.check_duplicated_index(passage_sideLine_list)
 
-    # 傍線部の連番飛びチェック
-    jumped = ck.check_jumped_index(passage_sideLine_list)
-    if isinstance(jumped,InvalidItem):
-        invalid_list.append(jumped)
+    # # 傍線部の連番飛びチェック
+    # jumped = ck.check_jumped_index(passage_sideLine_list)
+    # if isinstance(jumped,InvalidItem):
+    #     invalid_list.append(jumped)
 
-    # 傍線部の添え字が設問内で参照されているかチェック
-    slideline_questions = list(doc_util.get_paragraph_text_by_keyword(doc, "傍線部"))
-    result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
-    if isinstance(result_sl_mapping, InvalidItem):
-        invalid_list.append(result_sl_mapping)
+    # # 傍線部の添え字が設問内で参照されているかチェック
+    # slideline_questions = list(doc_util.get_paragraph_text_by_keyword(doc, "傍線部"))
+    # result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
+    # if isinstance(result_sl_mapping, InvalidItem):
+    #     invalid_list.append(result_sl_mapping)
 
-    # 設問内の添字が問題文中にあるかチェック
-    result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
-    if isinstance(result_sl_mapping, InvalidItem):
-        invalid_list.append(result_sl_mapping)
+    # # 設問内の添字が問題文中にあるかチェック
+    # result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
+    # if isinstance(result_sl_mapping, InvalidItem):
+    #     invalid_list.append(result_sl_mapping)
 
-    # 問のテキストを設問ごとにリストでの取得
-    question_texts = doc_util.get_questions(doc)
-    # 選択肢のチェック
-    for question in question_texts:
-        question_text = "\n".join([q.text for q in question])
-        if ck.get_question_type(question_text) == "選択式":
-            errors = ck.check_choices_mapping(question)
-            invalid_list.extend(errors)
+    # # 問のテキストを設問ごとにリストでの取得
+    # question_texts = doc_util.get_questions(doc)
+    # # 選択肢のチェック
+    # for question in question_texts:
+    #     question_text = "\n".join([q.text for q in question])
+    #     if ck.get_question_type(question_text) == "選択式":
+    #         errors = ck.check_choices_mapping(question)
+    #         invalid_list.extend(errors)
     
-    # 選択肢に重複や歯抜けがないかチェック
-    for question in question_texts:
-        question_text = "\n".join([q.text for q in question])
-        if ck.get_question_type(question_text) == "選択式":
-            errors = ck.check_choices_sequence(question)
-            invalid_list.append(errors)
+    # # 選択肢に重複や歯抜けがないかチェック
+    # for question in question_texts:
+    #     question_text = "\n".join([q.text for q in question])
+    #     if ck.get_question_type(question_text) == "選択式":
+    #         errors = ck.check_choices_sequence(question)
+    #         invalid_list.append(errors)
             
-    # 「適当でないもの」がMSゴシックであるかチェック
-    for question in question_texts:
-        result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
-        if isinstance(result_check_font_of_unfit_item, InvalidItem):
-            invalid_list.append(result_check_font_of_unfit_item)
+    # # 「適当でないもの」がMSゴシックであるかチェック
+    # for question in question_texts:
+    #     result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
+    #     if isinstance(result_check_font_of_unfit_item, InvalidItem):
+    #         invalid_list.append(result_check_font_of_unfit_item)
 
     # 「問~」がMSゴシックかチェック
     extract_paragraphs = doc_util.extract_question_paragraphs(doc)
