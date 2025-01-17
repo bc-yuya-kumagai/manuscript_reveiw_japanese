@@ -228,3 +228,69 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         # hit_indexisに該当するrunのフォントがMSゴシックであるかをチェックする 1つでもMSゴシックでないものがあればエラー
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
+        
+def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
+    """「問~」がMSゴシックかチェック
+    """
+    for paragraph in paragraphs:
+        buffer = src.doc_util.font_analyzer(docx_file_path, paragraph)  # 段落内のテキスト情報を一時的に保持する
+        question_no = None  # 検出した「問〇」の番号を格納する変数
+
+        # 段落全体のテキストを結合
+        combined_text = "".join([content["text"] for content in buffer])
+
+        kanji_numbers = [
+            "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+            "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"
+        ][::-1]
+
+        # 「問〇」の形式を検出
+        for kanji in kanji_numbers:
+            keyword = f"問{kanji}"
+            if keyword in combined_text:
+                question_no = keyword
+                break
+
+        # 判定
+        if question_no is not None:
+            buffer_question_no = ""
+            for content in buffer:
+                if buffer_question_no == keyword:
+                    break
+                if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
+                    return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
+                buffer_question_no += content["text"]
+
+
+def check_kanji_question_order(paragraphs: List[object]) -> None:
+    """段落が「問[漢数字]」で始まり、順番通りになっているかチェック"""
+    previous_value = 0  # 前回の漢数字の数値を保持
+    kanji_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+
+    for paragraph in paragraphs:
+        text = getattr(paragraph, "text", str(paragraph))
+        if text.startswith("問"):
+            match = re.match(r"問([一二三四五六七八九十百千]+)", text)
+            if match:
+                kanji = match.group(1)
+
+                # 漢数字を数値に変換
+                value = 0
+                temp = 0
+                for char in kanji:
+                    if char in kanji_map:  # 漢数字を数値化
+                        temp = kanji_map[char]  # そのまま現在の値として保持
+                    elif char == '十':
+                        temp = max(1, temp) * 10  # 前の値を10倍（値が無ければ1を補完）
+                    else:
+                        return InvalidItem(type="漢数字順序エラー", message=f'サポートされていない漢数字です。')
+
+                value += temp
+
+                # 順番が正しいかチェック
+                if value <= previous_value:
+                    return InvalidItem(type="漢数字順序エラー", message=f'順番が間違っています。')
+
+                previous_value = value
+            else:
+                return InvalidItem(type="漢数字順序エラー", message=f'無効な形式が含まれています。')
