@@ -86,6 +86,10 @@ def analyze_docx(docx_file_path: str):
         if isinstance(result_check_font_of_unfit_item, InvalidItem):
             invalid_list.append(result_check_font_of_unfit_item)
 
+    # 解説文に「正解」が含まれるかチェックし、含まれていたらエラーを返す
+    check_word_in_explanatory = ck.check_word_in_explanatory(question_texts)
+    if isinstance(check_word_in_explanatory, InvalidItem):
+        invalid_list.append(check_word_in_explanatory)
 
     # 結果整形
     result = {"errors":[]}

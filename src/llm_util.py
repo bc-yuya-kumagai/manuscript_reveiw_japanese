@@ -343,3 +343,73 @@ def check_choices2question_mapping(question_text:str):
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
+    
+
+def check_keyword_in_explanation(content: str, keyword: str) -> dict:
+    """
+    指定された単語が問題文の引用であればチェックせず、解説の文章に含まれている場合は結果とどの部分かを返却する。
+
+    Args:
+        content (str): 入力された文章。
+        keyword (str): チェックする単語。
+
+    Returns:
+        dict: 結果を含むJSON形式の辞書。
+    """
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"Check the text to see if it contains the **exact keyword** '{keyword}' (case-sensitive). "
+                "The keyword must match exactly, without considering synonyms, derived words, or similar phrases. "
+                "Evaluate only the explanation section, and ignore the problem statement. "
+                "Return True only if the exact keyword is found in the explanation section."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                "Evaluate the following text for the presence of the exact keyword in the explanation section:\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    json_schema = {
+        "name": "KeywordCheckResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "isFind": {
+                    "type": "boolean",
+                    "description": "Indicates whether the specified keyword was found in the text."
+                },
+                "content": {
+                    "type": ["string", "null"],
+                    "description": "The text where the keyword was found, or null if not found."
+                }
+            },
+            "required": ["isFind", "content"],
+            "additionalProperties": False
+        }
+    }
+
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        }
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return response.json()  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
