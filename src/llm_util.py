@@ -343,3 +343,82 @@ def check_choices2question_mapping(question_text:str):
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
+    
+def check_keyword_in_problem_statement(content: str, keyword: str) -> dict:
+    """
+    キーワードまたは類似単語が含まれている場合、評価対象とし、その使用状況を確認。
+    キーワードが正しく使われていない場合、不適切な単語をリストアップ。
+
+    Args:
+        content (str): 入力された文章（問題文と解説文が含まれる）。
+        keyword (str): チェックするキーワード。
+
+    Returns:
+        dict: 評価結果を含むJSON形式の辞書。
+    """
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                f"Analyze the problem statement to check if the keyword '{keyword}' or similar words are present. "
+                "Set 'isEvaluation' to True if similar words or the keyword are present; otherwise, False. "
+                "If the exact keyword is present and used correctly, set 'isCorrect' to True; otherwise, False. "
+                "List all incorrect usages of similar words or phrases in 'incorrectUsages'."
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                "Analyze the following text for keyword presence and usage in the problem statement:\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "KeywordAnalysisResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "isEvaluation": {
+                    "type": "boolean",
+                    "description": "True if the keyword or similar words are present in the problem statement."
+                },
+                "isCorrect": {
+                    "type": "boolean",
+                    "description": "True if the exact keyword is present and used correctly; otherwise, False."
+                },
+                "incorrectUsages": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of incorrect words or phrases that resemble the keyword."
+                }
+            },
+            "required": ["isEvaluation", "isCorrect", "incorrectUsages"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return response.json()  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e

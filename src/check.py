@@ -4,6 +4,7 @@ import re
 from typing import List
 import src.llm_util
 from docx.text.paragraph import Paragraph
+import json
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -228,3 +229,16 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         # hit_indexisに該当するrunのフォントがMSゴシックであるかをチェックする 1つでもMSゴシックでないものがあればエラー
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
+
+def check_keyword_in_problem(paragraphs:List[Paragraph]):
+    """設問に正しく「適切」が使用されているかチェックする"""
+    for question in paragraphs:
+        for paragraph in question:
+            paragraph_text = paragraph.text.strip()
+            # 問の段落
+            if paragraph_text.startswith("問"):
+                response = src.llm_util.check_keyword_in_problem_statement(paragraph_text,"適切")
+                result = json.loads(response["choices"][0]["message"]["content"])
+                if result["isEvaluation"] is True and result["isCorrect"] is False:
+                    error_words = ",".join(result["incorrectUsages"])
+                    return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')
