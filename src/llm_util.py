@@ -361,16 +361,17 @@ def check_keyword_in_problem_statement(content: str, keyword: str) -> dict:
         {
             "role": "system",
             "content": (
-                f"Analyze the problem statement to check if the keyword '{keyword}' or similar words are present. "
+                f"Analyze the problem statement to check if the exact keyword '{keyword}' or similar words are present. "
                 "Set 'isEvaluation' to True if similar words or the keyword are present; otherwise, False. "
-                "If the exact keyword is present and used correctly, set 'isCorrect' to True; otherwise, False. "
+                "If the exact keyword is present and used correctly in context, set 'isCorrect' to True. "
+                "If similar words are present or the keyword is used incorrectly, set 'isCorrect' to False. "
                 "List all incorrect usages of similar words or phrases in 'incorrectUsages'."
             )
         },
         {
             "role": "user",
             "content": (
-                "Analyze the following text for keyword presence and usage in the problem statement:\n"
+                "Analyze the following text to determine if the keyword is correctly used in context:\n"
                 "===\n"
                 f"{content}\n"
                 "===\n"
@@ -391,7 +392,7 @@ def check_keyword_in_problem_statement(content: str, keyword: str) -> dict:
                 },
                 "isCorrect": {
                     "type": "boolean",
-                    "description": "True if the exact keyword is present and used correctly; otherwise, False."
+                    "description": "True if the exact keyword is present and used correctly in context; otherwise, False."
                 },
                 "incorrectUsages": {
                     "type": "array",

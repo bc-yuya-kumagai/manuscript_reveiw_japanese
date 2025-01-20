@@ -231,13 +231,13 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
 
 def check_keyword_in_problem(paragraphs:List[Paragraph]):
-    """設問に正しく「適切」が使用されているかチェックする"""
+    """設問に正しく「適当」が使用されているかチェックする"""
     for question in paragraphs:
         for paragraph in question:
             paragraph_text = paragraph.text.strip()
             # 問の段落
             if paragraph_text.startswith("問"):
-                response = src.llm_util.check_keyword_in_problem_statement(paragraph_text,"適切")
+                response = src.llm_util.check_keyword_in_problem_statement(paragraph_text,"適当")
                 result = json.loads(response["choices"][0]["message"]["content"])
                 if result["isEvaluation"] is True and result["isCorrect"] is False:
                     error_words = ",".join(result["incorrectUsages"])
