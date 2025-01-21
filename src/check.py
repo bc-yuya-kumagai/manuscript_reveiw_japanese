@@ -260,3 +260,53 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+
+def check_answer_contains_points(paragraphs:List[Paragraph]):
+    """記述設問の場合に、解説のポイントが含まれているかチェックする"""
+    # 加工した段落を格納するリスト
+    processed_paragraphs = []
+    # 「●設問解説」が見つかったかどうかのフラグ
+    found_keyword = False
+
+    # すべての段落を取得
+    for question in paragraphs:
+        for paragraph in question:
+              # 不要な空白を削除
+            paragraph_text = paragraph.text.strip()
+            if paragraph_text:
+                  # フラグが立っている場合、段落を追加
+                if found_keyword:
+                    processed_paragraphs.append(paragraph_text)
+                    # キーワードを発見した場合
+                elif "●設問解説" in paragraph_text:
+                    # フラグを立てる
+                    found_keyword = True
+                    processed_paragraphs.append(paragraph_text)
+
+    # 問ごとにグループ化
+    questions = {} 
+    # 現在の問
+    current_question = None
+
+    for paragraph in processed_paragraphs:
+        # 問の段落
+        if paragraph.startswith("問"):
+            # 現在の問を更新
+            current_question = paragraph
+            # 新しい問を追加
+            questions[current_question] = []
+        # 問以降の段落を追加
+        elif current_question:
+            questions[current_question].append(paragraph)
+            
+    for question, details in questions.items():
+        if "記述設問" in question:
+            count_explanation_points = 0
+            for detail in details:
+                if "解答のポイント" in detail:
+                    count_explanation_points += 1
+
+            # 解説のポイントが含まれていなければExceptionを発火
+            if count_explanation_points == 0:
+                return InvalidItem(type="フレーズ不足", message=f"{question}に、記述設問の場合解説のポイントが含まれていません。")
