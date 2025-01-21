@@ -260,3 +260,10 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+def check_phrase_in_kanji_question(paragraphs:List[Paragraph]):
+    """設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします"""
+    for paragraph in paragraphs:
+        if "カタカナを漢字に" in paragraph.text:
+            if "楷書ではっきり大きく書くこと。" not in paragraph.text:
+                return InvalidItem(type="フレーズ不足", message="漢字書き取り問題の、「楷書ではっきり大きく書くこと。」が不足しています。")

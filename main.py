@@ -92,6 +92,11 @@ def analyze_docx(docx_file_path: str):
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
 
+    # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
+    check_phrase = ck.check_phrase_in_kanji_question(extract_paragraphs)
+    if isinstance(check_phrase, InvalidItem):
+        invalid_list.append(check_phrase)
+
     # 結果整形
     result = {"errors":[]}
     if invalid_list:
