@@ -230,15 +230,25 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
 
-def check_keyword_in_problem(paragraphs:List[Paragraph]):
+def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
     """設問に正しく「適当」が使用されているかチェックする"""
-    for question in paragraphs:
-        for paragraph in question:
+    result = ""
+    combined_questions = []
+    for paragraphs in paragraphs_lists:
+        for paragraph in paragraphs:
             paragraph_text = paragraph.text.strip()
-            # 問の段落
             if paragraph_text.startswith("問"):
-                response = src.llm_util.check_keyword_in_problem_statement(paragraph_text,"適当")
-                result = json.loads(response["choices"][0]["message"]["content"])
-                if result["isEvaluation"] is True and result["isCorrect"] is False:
-                    error_words = ",".join(result["incorrectUsages"])
-                    return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')
+                if result:
+                    combined_questions.append(result.strip())
+                result = paragraph_text
+            else:
+                result += "\n" + paragraph_text
+    if result:
+        combined_questions.append(result.strip())
+
+    # 出力結果
+    for _ , combined in enumerate(combined_questions, start=1):
+        result = json.loads(src.llm_util.check_keyword_exact_match_in_question_statement(combined,"適当")["choices"][0]["message"]["content"])
+        if result["is_evaluated"] is True and result["is_exact_match"] is False:
+            error_words = ",".join(result["incorrect_usages"])
+            return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')

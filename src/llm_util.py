@@ -344,7 +344,7 @@ def check_choices2question_mapping(question_text:str):
         logger.error(f"response[{response.json()}]")
         raise e
     
-def check_keyword_in_problem_statement(content: str, keyword: str) -> dict:
+def check_keyword_exact_match_in_question_statement(content: str, keyword: str) -> dict:
     """
     キーワードまたは類似単語が含まれている場合、評価対象とし、その使用状況を確認。
     キーワードが正しく使われていない場合、不適切な単語をリストアップ。
@@ -361,17 +361,14 @@ def check_keyword_in_problem_statement(content: str, keyword: str) -> dict:
         {
             "role": "system",
             "content": (
-                f"Analyze the problem statement to check if the exact keyword '{keyword}' or similar words are present. "
-                "Set 'isEvaluation' to True if similar words or the keyword are present; otherwise, False. "
-                "If the exact keyword is present and used correctly in context, set 'isCorrect' to True. "
-                "If similar words are present or the keyword is used incorrectly, set 'isCorrect' to False. "
-                "List all incorrect usages of similar words or phrases in 'incorrectUsages'."
+                "あなたは設問の説明を調査しキーワードが完全一致で含まれているかチェックするボットです。"
+                "不一致であれば、似ている単語をincorrect_usagesにリスト化しします。"
             )
         },
         {
             "role": "user",
             "content": (
-                "Analyze the following text to determine if the keyword is correctly used in context:\n"
+                f"以下の文章は設問と各問があります。この内、設問文から指定されたキーワード「{keyword}」が完全一致で使用されているか判断してください。\n"
                 "===\n"
                 f"{content}\n"
                 "===\n"
@@ -386,21 +383,21 @@ def check_keyword_in_problem_statement(content: str, keyword: str) -> dict:
         "schema": {
             "type": "object",
             "properties": {
-                "isEvaluation": {
+                "is_evaluated": {
                     "type": "boolean",
-                    "description": "True if the keyword or similar words are present in the problem statement."
+                    "description": f"設問文でキーワードで、「{keyword}」と類似するキーワードが含まれている場合は、True に設定し、含まれていない場合は False に設定してください。",
                 },
-                "isCorrect": {
+                "is_exact_match": {
                     "type": "boolean",
-                    "description": "True if the exact keyword is present and used correctly in context; otherwise, False."
+                    "description": f"設問文でキーワードで、「{keyword}」がそのまま使われていれば、True に設定し、そうでなければ False に設定してください。"
                 },
-                "incorrectUsages": {
+                "incorrect_usages": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of incorrect words or phrases that resemble the keyword."
+                    "description": f"設問文でキーワードで、「{keyword}」がそのまま使われていない場合、is_evaluatedで似ていると判断した単語それらをすべてリストしてください。"
                 }
             },
-            "required": ["isEvaluation", "isCorrect", "incorrectUsages"],
+            "required": ["is_evaluated", "is_exact_match", "incorrect_usages"],
             "additionalProperties": False
         }
     }
