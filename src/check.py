@@ -260,3 +260,21 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+def check_paragraph_question_and_score(doc: str):
+    """大問の合計と小問の合計が一致しているかをチェックする"""
+    question_and_score_text = src.doc_util.get_paragraph_question_and_score_text(doc)
+    scores = src.llm_util.extract_score_from_question_statement(question_and_score_text)
+    
+    # 大問の合計点数
+    total_score = scores["question_total_score"]
+    # 小問の合計点数
+    total_question_score = 0
+    for score in scores["questions"]:
+        if score["each_score"]:
+            total_question_score += score["score"] * score["each_score"]
+        else:
+            total_question_score += score["score"]
+    # 合計点数が一致しているかをチェックし、一致しない場合はエラーを返す
+    if total_score != total_question_score:
+        return InvalidItem(type="得点エラー", message=f'大問の合計と小問の合計値が間違っています。[大問:{total_score},小問の合計:{total_question_score}]')

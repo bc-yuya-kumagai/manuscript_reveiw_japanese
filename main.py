@@ -119,9 +119,10 @@ def analyze_docx(docx_file_path: str):
     # # 結果を出力
     # print(result)
 
-    for paragraphs in question_texts:
-        for paragraph in paragraphs:
-            print(paragraph.text)
+
+    check_paragraph_question_score = ck.check_paragraph_question_and_score(doc)
+    if isinstance(check_paragraph_question_score, InvalidItem):
+        invalid_list.append(check_paragraph_question_score) 
 
     # 結果整形
     result = {"errors":[]}
