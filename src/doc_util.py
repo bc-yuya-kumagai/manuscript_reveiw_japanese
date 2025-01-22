@@ -344,6 +344,7 @@ def find_theme_font_schemas(word_file_path):
         'minorFont': minor_font
     }
 
+
 # 使用例
 if __name__ == "__main__":
     word_file_path = "example.docx"  # Wordファイルのパスを指定
