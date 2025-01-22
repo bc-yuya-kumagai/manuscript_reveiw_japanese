@@ -7,6 +7,7 @@ from docx.text.paragraph import Paragraph
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+kanji_question_pattern = re.compile(r"問([一二三四五六七八九十]+)")
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -268,29 +269,40 @@ def check_kanji_question_order(paragraphs: List[object]) -> None:
     kanji_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
 
     for paragraph in paragraphs:
-        text = getattr(paragraph, "text", str(paragraph))
+        text = "".join(paragraph.text)
         if text.startswith("問"):
-            match = re.match(r"問([一二三四五六七八九十百千]+)", text)
+            match = kanji_question_pattern.match(text)
             if match:
                 kanji = match.group(1)
+                # 「十」がない場合は、一桁の数字に限定
+                if "十" not in kanji:
+                    if len(kanji) > 1:
+                        return InvalidItem(type="漢数字順序エラー", message=f"不正な形式です: {kanji}")
+                    if kanji not in kanji_map:
+                        return InvalidItem(type="漢数字順序エラー", message=f"未知の文字です: {kanji}")
+                    return kanji_map[kanji]
 
-                # 漢数字を数値に変換
-                value = 0
+                result = 0
                 temp = 0
                 for char in kanji:
-                    if char in kanji_map:  # 漢数字を数値化
-                        temp = kanji_map[char]  # そのまま現在の値として保持
-                    elif char == '十':
-                        temp = max(1, temp) * 10  # 前の値を10倍（値が無ければ1を補完）
+                    if char in kanji_map:
+                        value = kanji_map[char]
+                        if value == 10:  # 十の処理
+                            if temp == 1: # 一十一のようなパターンはエラーとする
+                                return InvalidItem(type="漢数字順序エラー", message="無効な漢数字形式です")
+                            if temp == 0:  # "十" 単独の場合は10
+                                temp = 1
+                            result += temp * 10
+                            temp = 0
+                        else:
+                            temp = value
                     else:
-                        return InvalidItem(type="漢数字順序エラー", message=f'サポートされていない漢数字です。')
-
-                value += temp
-
+                        return InvalidItem(type="漢数字順序エラー", message=f"未知の文字です: {char}")
+                result += temp  # 最後の値を加算
                 # 順番が正しいかチェック
-                if value <= previous_value:
-                    return InvalidItem(type="漢数字順序エラー", message=f'順番が間違っています。')
+                if value != previous_value + 1:
+                    return InvalidItem(type="漢数字順序エラー", message='順番が間違っています。')
 
                 previous_value = value
             else:
-                return InvalidItem(type="漢数字順序エラー", message=f'無効な形式が含まれています。')
+                return InvalidItem(type="漢数字順序エラー", message=f'漢数字以外または範囲外の漢数字が含まれています。[{text}]')
