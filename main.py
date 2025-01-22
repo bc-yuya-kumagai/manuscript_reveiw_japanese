@@ -7,7 +7,6 @@ import os
 from src import doc_util
 from src import check as ck
 from src.check import InvalidItem, SideLine
-import re
 app = FastAPI()
 
 # CORSの設定（必要に応じて）
