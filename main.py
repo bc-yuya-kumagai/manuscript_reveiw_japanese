@@ -86,6 +86,11 @@ def analyze_docx(docx_file_path: str):
         if isinstance(result_check_font_of_unfit_item, InvalidItem):
             invalid_list.append(result_check_font_of_unfit_item)
 
+    # 「問~」がMSゴシックかチェック
+    extract_paragraphs = doc_util.extract_question_paragraphs(doc)
+    check_heading_question_font_item = ck.check_heading_question_font(docx_file_path, extract_paragraphs)
+    if isinstance(check_heading_question_font_item, InvalidItem):
+        invalid_list.append(check_heading_question_font_item)
 
     # 結果整形
     result = {"errors":[]}
