@@ -252,3 +252,35 @@ def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
         if result["is_evaluated"] is True and result["is_exact_match"] is False:
             error_words = ",".join(result["incorrect_usages"])
             return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')
+        
+def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
+    """「問~」がMSゴシックかチェック
+    """
+    for paragraph in paragraphs:
+        buffer = src.doc_util.font_analyzer(docx_file_path, paragraph)  # 段落内のテキスト情報を一時的に保持する
+        question_no = None  # 検出した「問〇」の番号を格納する変数
+
+        # 段落全体のテキストを結合
+        combined_text = "".join([content["text"] for content in buffer])
+
+        kanji_numbers = [
+            "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+            "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"
+        ][::-1]
+
+        # 「問〇」の形式を検出
+        for kanji in kanji_numbers:
+            keyword = f"問{kanji}"
+            if keyword in combined_text:
+                question_no = keyword
+                break
+
+        # 判定
+        if question_no is not None:
+            buffer_question_no = ""
+            for content in buffer:
+                if buffer_question_no == keyword:
+                    break
+                if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
+                    return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
+                buffer_question_no += content["text"]
