@@ -7,7 +7,6 @@ import os
 from src import doc_util
 from src import check as ck
 from src.check import InvalidItem, SideLine
-
 app = FastAPI()
 
 # CORSの設定（必要に応じて）
@@ -91,6 +90,11 @@ def analyze_docx(docx_file_path: str):
     check_heading_question_font_item = ck.check_heading_question_font(docx_file_path, extract_paragraphs)
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
+
+    # 大問の得点が設問の得点の合計が一致しているかチェック
+    check_paragraph_question_score = ck.check_paragraph_question_and_score(doc)
+    if isinstance(check_paragraph_question_score, InvalidItem):
+        invalid_list.append(check_paragraph_question_score) 
 
     # 結果整形
     result = {"errors":[]}
