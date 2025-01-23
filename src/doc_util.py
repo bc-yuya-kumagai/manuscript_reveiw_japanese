@@ -344,6 +344,20 @@ def find_theme_font_schemas(word_file_path):
         'minorFont': minor_font
     }
 
+def extract_main_text(doc: Document) -> list[Document]:
+    """問題に使用する本文を抜き出します。"""
+    main_text_list = []
+    start_collecting = False
+    for p in doc.paragraphs:
+        if p.text.startswith("【文章"):
+            start_collecting = True
+        if start_collecting:
+            if p.text.startswith("（注）"):
+                break
+            main_text_list.append(p)
+            
+    return main_text_list
+
 # 使用例
 if __name__ == "__main__":
     word_file_path = "example.docx"  # Wordファイルのパスを指定
