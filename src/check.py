@@ -248,7 +248,7 @@ def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
 
     # 出力結果
     for _ , combined in enumerate(combined_questions, start=1):
-        result = json.loads(src.llm_util.check_keyword_exact_match_in_question_statement(combined,"適当")["choices"][0]["message"]["content"])
+        result = json.loads(src.llm_util.check_tekitou_exact_match_in_question_statement(combined)["choices"][0]["message"]["content"])        
         if result["is_evaluated"] is True and result["is_exact_match"] is False:
             error_words = ",".join(result["incorrect_usages"])
             return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')

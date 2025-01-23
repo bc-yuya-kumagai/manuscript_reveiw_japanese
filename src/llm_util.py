@@ -344,14 +344,13 @@ def check_choices2question_mapping(question_text:str):
         logger.error(f"response[{response.json()}]")
         raise e
     
-def check_keyword_exact_match_in_question_statement(content: str, keyword: str) -> dict:
+def check_tekitou_exact_match_in_question_statement(content: str) -> dict:
     """
-    キーワードまたは類似単語が含まれている場合、評価対象とし、その使用状況を確認。
-    キーワードが正しく使われていない場合、不適切な単語をリストアップ。
+    表現内に「適当」に類似する表現が含まれている場合、評価対象とし、その使用状況を確認。
+    表現内に「適当」が正しく使われていない場合、不適切な単語をリストアップ。
 
     Args:
         content (str): 入力された文章（問題文と解説文が含まれる）。
-        keyword (str): チェックするキーワード。
 
     Returns:
         dict: 評価結果を含むJSON形式の辞書。
@@ -361,14 +360,16 @@ def check_keyword_exact_match_in_question_statement(content: str, keyword: str) 
         {
             "role": "system",
             "content": (
-                "あなたは設問の説明を調査しキーワードが完全一致で含まれているかチェックするボットです。"
-                "不一致であれば、似ている単語をincorrect_usagesにリスト化しします。"
+                "あなたは設問の説明を読んでおかしいところがないか解析するロボットです。"
+                "「適当なものを選ぶ」、「適当でないなものを選ぶ」のように、選択の基準を示す文脈で、"
+                "「適当」という言葉が使われていること「適切」、「最適」が使われていない事"
+                "「適当」という言葉が使われていなければ、「適当」と似ている単語をincorrect_usagesにリスト化しします。"
             )
         },
         {
             "role": "user",
             "content": (
-                f"以下の文章は設問と各問があります。この内、設問文から指定されたキーワード「{keyword}」が完全一致で使用されているか判断してください。\n"
+                f"以下の文章は設問と各問があります。この内、設問文から「適当」という言葉が使用されているか判断してください。\n"
                 "===\n"
                 f"{content}\n"
                 "===\n"
@@ -385,16 +386,16 @@ def check_keyword_exact_match_in_question_statement(content: str, keyword: str) 
             "properties": {
                 "is_evaluated": {
                     "type": "boolean",
-                    "description": f"設問文でキーワードで、「{keyword}」と類似するキーワードが含まれている場合は、True に設定し、含まれていない場合は False に設定してください。",
+                    "description": "設問文の表現で、「適当」と類似する表現が含まれている場合は、True に設定し、含まれていない場合は False に設定してください。",
                 },
                 "is_exact_match": {
                     "type": "boolean",
-                    "description": f"設問文でキーワードで、「{keyword}」がそのまま使われていれば、True に設定し、そうでなければ False に設定してください。"
+                    "description": "設問文の表現で、「適当」がそのまま使われていれば、True に設定し、そうでなければ False に設定してください。"
                 },
                 "incorrect_usages": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": f"設問文でキーワードで、「{keyword}」がそのまま使われていない場合、is_evaluatedで似ていると判断した単語それらをすべてリストしてください。"
+                    "description": "設問文の表現で、「適当」がそのまま使われていない場合、is_evaluatedで似ていると判断した単語それらをすべてリストしてください。"
                 }
             },
             "required": ["is_evaluated", "is_exact_match", "incorrect_usages"],
