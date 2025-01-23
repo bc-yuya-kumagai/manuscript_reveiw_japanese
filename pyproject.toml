@@ -12,16 +12,11 @@ dependencies = [
     "fastapi",
     "python-docx",
     "python-dotenv",
-    "python-multipart"
+    "python-multipart",
+    "requests"
 ]
 
-packages = [
-    { include = "manuscript_review" }
-]
 
 [tool.poetry]
 package-mode = false
 
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
