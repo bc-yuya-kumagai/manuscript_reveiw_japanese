@@ -7,7 +7,6 @@ from docx.text.paragraph import Paragraph
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-kanji_question_pattern = re.compile(r"問([一二三四五六七八九十]+)")
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -259,50 +258,86 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if buffer_question_no == keyword:
                     break
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
-                    return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
+                    return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
 
-
-def check_kanji_question_order(paragraphs: List[object]) -> None:
-    """段落が「問[漢数字]」で始まり、順番通りになっているかチェック"""
-    previous_value = 0  # 前回の漢数字の数値を保持
+def convert_kanji_number_to_int(kanji_number)->int:
+    """漢数字を数値に変換する
+    不正な値があった場合はValueErrorを返す
+    """
     kanji_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+    if len(kanji_number) == 1:
+        return kanji_map[kanji_number]
+    
+    elif len(kanji_number) == 2:
+        if kanji_number == "十十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        
+        if kanji_number[0] == "十":
+            return 10 + kanji_map[kanji_number[1]]
+        
+        elif kanji_number[1] == "十":
+            return kanji_map[kanji_number[0]] * 10
+        else:
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+    elif len(kanji_number) == 3:
+        # 3文字の場合、1文字目に"一"がある場合は不正
+        if kanji_number[0] == "一":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        
+        # 3文字の場合、"十"は必ず2文字目になるはず、1文字目、3文字目はNG"
+        # 三十一"はOK "十一二","一二十"はNG
+        if kanji_number[0] == "十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        if kanji_number[1] != "十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        if kanji_number[2] == "十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
 
+
+        return kanji_map[kanji_number[0]] * 10 + kanji_map[kanji_number[2]]
+    else:
+        raise ValueError(f"不正な漢数字です: {kanji_number}")
+    
+def check_number_order(numbers:List[int], kanji_index:List[str]) -> None:
+    """整数のリストが連番になっているかをチェックする
+    """
+    for i in range(1, len(numbers)):
+        if numbers[i] != numbers[i-1] + 1:
+            yield InvalidItem(type="問の番号不正", message=f"問題番号が連番になっていません: {kanji_index[i-1]}の次に{kanji_index[i]}があります")
+
+# 問の漢数字パターン
+kanji_question_pattern = re.compile(r"問([一二三四五六七八九十]+)")
+
+def check_kanji_question_index_order(paragraphs: List[object]) -> None:
+    """段落が「問[漢数字]」で始まり、順番通りになっているかチェック"""
+    integers = []
+    kanji_index = [] # 問の漢数字を保持するリストメッセージ出力用に利用する
+
+    errors = []
     for paragraph in paragraphs:
+
         text = "".join(paragraph.text)
         if text.startswith("問"):
             match = kanji_question_pattern.match(text)
             if match:
                 kanji = match.group(1)
-                # 「十」がない場合は、一桁の数字に限定
-                if "十" not in kanji:
-                    if len(kanji) > 1:
-                        return InvalidItem(type="漢数字順序エラー", message=f"不正な形式です: {kanji}")
-                    if kanji not in kanji_map:
-                        return InvalidItem(type="漢数字順序エラー", message=f"未知の文字です: {kanji}")
-                    return kanji_map[kanji]
-
-                result = 0
-                temp = 0
-                for char in kanji:
-                    if char in kanji_map:
-                        value = kanji_map[char]
-                        if value == 10:  # 十の処理
-                            if temp == 1: # 一十一のようなパターンはエラーとする
-                                return InvalidItem(type="漢数字順序エラー", message="無効な漢数字形式です")
-                            if temp == 0:  # "十" 単独の場合は10
-                                temp = 1
-                            result += temp * 10
-                            temp = 0
-                        else:
-                            temp = value
-                    else:
-                        return InvalidItem(type="漢数字順序エラー", message=f"未知の文字です: {char}")
-                result += temp  # 最後の値を加算
-                # 順番が正しいかチェック
-                if value != previous_value + 1:
-                    return InvalidItem(type="漢数字順序エラー", message='順番が間違っています。')
-
-                previous_value = value
+                kanji_index.append(kanji)
+                try:
+                    int_value = convert_kanji_number_to_int(kanji)
+                    integers.append(int_value)
+                except ValueError as e:
+                    errors.append(InvalidItem(type="問の番号不正", message=str("len({kanji_index}+1)番目の問の番号の漢数字が不正です: {kanji}")))
             else:
-                return InvalidItem(type="漢数字順序エラー", message=f'漢数字以外または範囲外の漢数字が含まれています。[{text}]')
+                # textを" "または"、"、"。”、"　"で分割して、最初の要素を取得する
+                invalid_index = re.split(r"[、　。 ]", text)[0]
+                errors.append(InvalidItem(type="問の番号不正", message=f"問の番号が漢数字になっていません: {invalid_index}"))
+    # integersの整数の値が1からの連番になっているかをチェックする
+    if integers[0] != 1:
+        errors.append(InvalidItem(type="問の番号不正", message=f"問の番号が一から始まっていません: {kanji_index[0]}"))
+    # 連番チェック
+    order_error = check_number_order(integers, kanji_index) 
+    for oe in order_error:
+        errors.append(oe)
+
+    return errors

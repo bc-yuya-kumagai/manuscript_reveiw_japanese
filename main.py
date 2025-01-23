@@ -94,9 +94,9 @@ def analyze_docx(docx_file_path: str):
 
     # 設問番号が順番通りになっているかチェック
     extract_paragraphs = doc_util.extract_question_paragraphs(doc)
-    check_kanji_number_order =  ck.check_kanji_question_order(extract_paragraphs)
-    if isinstance(check_kanji_number_order, InvalidItem):
-        invalid_list.append(check_kanji_number_order)
+    check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
+    for error in check_kanji_number_orders:
+        invalid_list.append(error)
 
     # 結果整形
     result = {"errors":[]}
