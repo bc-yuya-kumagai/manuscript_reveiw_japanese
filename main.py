@@ -92,6 +92,11 @@ def analyze_docx(docx_file_path: str):
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
 
+    # 大問の配点をチェックする。 問Aは40点のため直書きしている。問題の種別によって配点すべき点数を変える場合、問題がどの種類かの特定が必要。
+    part_question_score_check = ck.check_part_question_score(doc)
+    if isinstance(part_question_score_check, InvalidItem):
+        invalid_list.append(part_question_score_check)
+
     # 結果整形
     result = {"errors":[]}
     if invalid_list:

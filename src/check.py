@@ -3,10 +3,13 @@ import logging
 import re
 from typing import List
 import src.llm_util
+from docx import Document
 from docx.text.paragraph import Paragraph
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# 大問の点数を取得する正規表現
+part_extract_score_pattern = re.compile(r"（配点\s*([一二三四五六七八九〇]+)）")
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -260,3 +263,38 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+def check_part_question_score(doc:Document):
+    
+    # 冒頭の説明部分を取得
+    document = ""
+    for p in doc.paragraphs:
+        if p.text in "【文章":
+            break
+        document += p.text
+    
+    # 配点から点数を取得
+    if part_extract_score_pattern:
+        extracted_text = part_extract_score_pattern.search(document)
+        extracted_text = extracted_text.group(1)
+
+        # 漢数字をアラビア数字に変換
+        kanji_to_number = {
+            "〇": 0,
+            "一": 1,
+            "二": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+        }
+        arabic_number = "".join(str(kanji_to_number[char]) for char in extracted_text if char in kanji_to_number)
+        print(arabic_number)
+
+        # 点数チェック
+        # 問Aは40点
+        if 40 != arabic_number:
+            return InvalidItem(type="大問配点不備", message='大問の配点が指定された点数ではありません。')
