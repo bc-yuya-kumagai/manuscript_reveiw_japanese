@@ -130,7 +130,7 @@ async def home_page():
     # 簡易的なアップロードフォーム
     return """
     <html>
-        <head><title>Word Check</title></head>
+        <head><title>国語原稿チェックツール  機能検証画面</title></head>
         <body>
             <h1>Wordファイルアップロード</h1>
             <form action="/upload" enctype="multipart/form-data" method="post">
