@@ -365,3 +365,9 @@ def check_kanji_question_index_order(paragraphs: List[object]) -> None:
         errors.append(oe)
 
     return errors
+def check_phrase_in_kanji_question(paragraphs:List[Paragraph]):
+    """設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします"""
+    for paragraph in paragraphs:
+        if "カタカナを漢字に" in paragraph.text:
+            if "楷書ではっきり大きく書くこと。" not in paragraph.text:
+                return InvalidItem(type="フレーズ不足", message="漢字書き取り問題の、「楷書ではっきり大きく書くこと。」が不足しています。")

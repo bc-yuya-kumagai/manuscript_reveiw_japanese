@@ -103,6 +103,11 @@ def analyze_docx(docx_file_path: str):
     for error in check_kanji_number_orders:
         invalid_list.append(error)
 
+    # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
+    check_phrase = ck.check_phrase_in_kanji_question(extract_paragraphs)
+    if isinstance(check_phrase, InvalidItem):
+        invalid_list.append(check_phrase)
+
     # 結果整形
     result = {"errors":[]}
     if invalid_list:
