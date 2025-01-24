@@ -108,6 +108,11 @@ def analyze_docx(docx_file_path: str):
     if isinstance(check_phrase, InvalidItem):
         invalid_list.append(check_phrase)
 
+    #傍注の説明の内容が本文に入っているかチェック
+    check_exists_annotation_result = ck.check_exists_annotation(doc)
+    if isinstance(check_exists_annotation_result, InvalidItem):
+        invalid_list.append(check_exists_annotation_result)
+
     # 結果整形
     result = {"errors":[]}
     if invalid_list:
