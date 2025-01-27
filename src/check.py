@@ -4,6 +4,7 @@ import re
 from typing import List
 import src.llm_util
 from docx.text.paragraph import Paragraph
+from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -341,3 +342,21 @@ def check_kanji_question_index_order(paragraphs: List[object]) -> None:
         errors.append(oe)
 
     return errors
+
+def check_kanji_reading_missing_expressions(doc: Document):
+    error_text = ""
+    for paragraphs in doc:
+        question_text = ""
+        for paragraph in paragraphs:
+            question_text += str(paragraph.text) + "\n"
+        result = src.llm_util.check_modern_kana_usage(question_text)
+        if result["is_target_evaluation"] is True and result["is_modern_kana_usage_specified"] is False:
+            error_text_one_line = question_text.splitlines()[0]
+            
+            # 15文字以上だと丸める
+            if len(error_text_one_line) > 15:
+                error_text_one_line = error_text_one_line[:15 - 3] + "..."
+            
+            error_text += f"「{error_text_one_line}」付近で、「（現代仮名遣いでよい。）」というフレーズが不足しています。\n"
+
+    return InvalidItem(type="漢字読み取り指示文不足", message=error_text)

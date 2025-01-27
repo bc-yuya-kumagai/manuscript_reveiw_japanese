@@ -343,3 +343,66 @@ def check_choices2question_mapping(question_text:str):
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
+
+def check_modern_kana_usage(content: str) -> dict:
+    """問題文から指定されたフレーズである、「（現代仮名遣いでよい。）」という指示があるかどうか判定します。"""
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から指定された条件があるかチェックするボットです。"
+                "漢字の読み取り問題かどうか、また指定された指示が含まれているかの2つを判断します。"
+                "※読み取り問題とは、漢字を現代仮名遣いで書く問題のことである。「カタカナを漢字に改めよ。」のような表現が使用されている。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の問題文に「（現代仮名遣いでよい。）」という指示があるかどうか判定します。\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "KanjiReadingResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_target_evaluation": {
+                    "type": "boolean",
+                    "description": "漢字の読み取り問題であれば True なければ False とします。"
+                },
+                "is_modern_kana_usage_specified": {
+                    "type": "boolean",
+                    "description": "問題文に「（現代仮名遣いでよい。）」という指示が含まれていればTrue、そうでない場合はFalse"
+                },
+            },
+            "required": ["is_target_evaluation", "is_modern_kana_usage_specified"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e

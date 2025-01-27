@@ -97,6 +97,11 @@ def analyze_docx(docx_file_path: str):
     check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
     for error in check_kanji_number_orders:
         invalid_list.append(error)
+    
+    # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
+    check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
+    if isinstance(check_kanji_reading_missing_result, InvalidItem):
+        invalid_list.append(check_kanji_reading_missing_result)
 
     # 結果整形
     result = {"errors":[]}
