@@ -1,10 +1,12 @@
 # チェック系の関数をまとめたモジュール
 import logging
 import re
+import src.doc_util
 from typing import List
 import src.llm_util
 from docx.text.paragraph import Paragraph
 import json
+from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -274,3 +276,35 @@ def check_word_in_explanatory(paragraphs:List[Paragraph]):
             result = json.loads(response["choices"][0]["message"]["content"])
             if result["isFind"] is True:
                 return InvalidItem(type="解説文での表記ゆれエラー", message=f'本来、"正解"にすべきところに別の文章が入っています。[{result["content"]}]')
+
+def check_explanation_of_questions_include_word(doc: Document):
+    """
+    解説文章の中に、「正答」以外の単語が含まれていないかをチェックします。
+    
+    Args:
+        doc (Document): 対象となる文書オブジェクト。
+    
+    Returns:
+        InvalidItem: 表記ゆれが検出された場合のエラー情報を返します。
+    """
+    # 解説文のリストを取得
+    explanation_question_list = src.doc_util.get_explanation_of_questions(doc)
+    # 各解説文についてチェック
+    for explanation_question_text in explanation_question_list:
+        # 解説文にキーワードが含まれているかをチェック
+        check_result = src.llm_util.check_explanation_question_include_keyword(explanation_question_text)
+        # 評価対象であり、キーワードが見つからない場合
+        if check_result["is_evaluation_target"] is True and check_result["is_keyword_found"] is False:
+            # エラー文を短縮して表示用に加工
+            if len(explanation_question_text) > 15:
+                error_text_one_line = explanation_question_text[:12] + "..."
+            else:
+                error_text_one_line = explanation_question_text
+            # エラーメッセージを構築
+            error_message = (
+                f"解説中の正答を述べている文章に、「正答」という単語が使われていない箇所があります。"
+                f"[「{error_text_one_line}」付近で誤って「{check_result['error_similar_words']}」のように使用されています。]\n"
+            )
+            if error_message:
+                # 表記ゆれエラーを返す
+                return InvalidItem(type="解説文での表記ゆれエラー", message=error_message)

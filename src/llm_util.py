@@ -345,34 +345,34 @@ def check_choices2question_mapping(question_text:str):
         raise e
     
 
-def check_keyword_in_explanation(content: str, keyword: str) -> dict:
+def check_explanation_question_include_keyword(question_text: str) -> dict:
     """
-    指定された単語が問題文の引用であればチェックせず、解説の文章に含まれている場合は結果とどの部分かを返却する。
+    解説文章の中に、正答に関する記述がある場合、「正答」というワードが使われているか判断します。
 
     Args:
-        content (str): 入力された文章。
-        keyword (str): チェックする単語。
+        question_text (str): 入力された文章。
 
     Returns:
-        dict: 結果を含むJSON形式の辞書。
+        dict: 結果を含むJSON形式の辞書。is_evaluation_targetと、is_keyword_found
     """
     messages = [
         {
             "role": "system",
             "content": (
-                f"Check the text to see if it contains the **exact keyword** '{keyword}' (case-sensitive). "
-                "The keyword must match exactly, without considering synonyms, derived words, or similar phrases. "
-                "Evaluate only the explanation section, and ignore the problem statement. "
-                "Return True only if the exact keyword is found in the explanation section."
+                "あなたは解説文で正答番号を述べている文章を評価し、正答番号が明確に含まれていれば評価するボットです。"
+                "# 指示"
+                "※下記の指示に忠実に従いなさい。"
+                "- 正答番号が述べられていないものは、is_evaluation_targetをTrueにすべきではありません。"
+                "- is_evaluation_targetで解説内で正答番号を述べるフレーズで「したがって、正答は３である。」のように完全一致で「正答」というフレーズと、正答番号が述べられていれば、Trueにし、そうでない場合、False"
+                "- 解説内で正答番号を述べるフレーズで「したがって、正解は３である。」や「したがって、正答は３である。」などの表現に近いものがある場合is_evaluation_targetをTrueにし、そうでなければFalseとします。"
             )
         },
         {
             "role": "user",
             "content": (
-                "Evaluate the following text for the presence of the exact keyword in the explanation section:\n"
-                "===\n"
-                f"{content}\n"
-                "===\n"
+                "次の解説文を評価してください。"
+                "解説文:"
+                f"===\n{question_text}\n==="
             )
         }
     ]
@@ -383,16 +383,22 @@ def check_keyword_in_explanation(content: str, keyword: str) -> dict:
         "schema": {
             "type": "object",
             "properties": {
-                "isFind": {
+                "is_evaluation_target": {
                     "type": "boolean",
-                    "description": "Indicates whether the specified keyword was found in the text."
+                    "description": (
+                        "解説内で正答番号を述べるフレーズで「したがって、正解は３である。」や「したがって、正答は３である。」などの表現に近いものがある場合Trueにし、そうでなければFalseとします。"
+                    )
                 },
-                "content": {
-                    "type": ["string", "null"],
-                    "description": "The text where the keyword was found, or null if not found."
-                }
+                "is_keyword_found": {
+                    "type": "boolean",
+                    "description": "解説内で正答番号を述べるフレーズで「したがって、正答は３である。」のように完全一致で「正答」というフレーズと、正答番号が述べられていれば、Trueにし、そうでない場合、False"
+                },
+                "error_similar_words": {
+                    "type": "string",
+                    "description": "「正答」という言葉が使われていない場合に似た意味の単語を抜き出してください。"
+                },
             },
-            "required": ["isFind", "content"],
+            "required": ["is_evaluation_target", "is_keyword_found", "error_similar_words"],
             "additionalProperties": False
         }
     }
@@ -402,14 +408,15 @@ def check_keyword_in_explanation(content: str, keyword: str) -> dict:
         "response_format": {
             "type": "json_schema",
             "json_schema": json_schema
-        }
+        },
+        "temperature": 0.0
     }
 
     # リクエスト送信
     try:
         response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
         response.raise_for_status()
-        return response.json()  # JSONレスポンスを返す
+        return json.loads(response.json()['choices'][0]['message']['content'])  # JSONレスポンスを返す
     except Exception as e:
-        logger.error(f"response[{response.json()}]")
+        logger.error(f"response[{response.json()}]") if response else logger.error("response is None")
         raise e
