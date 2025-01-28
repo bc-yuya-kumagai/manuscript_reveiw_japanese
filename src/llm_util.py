@@ -355,10 +355,12 @@ def check_explanation_question_include_keyword(question_text: str) -> dict:
     Returns:
         dict: 結果を含むJSON形式の辞書。is_evaluation_targetと、is_keyword_found
     """
+    # OpenAIメッセージの定義
     messages = [
         {
             "role": "system",
             "content": (
+
                 "あなたは解説文で正答番号を述べている文章を評価し、正答番号が明確に含まれていれば評価するボットです。"
                 "# 指示"
                 "※下記の指示に忠実に従いなさい。"
@@ -369,10 +371,12 @@ def check_explanation_question_include_keyword(question_text: str) -> dict:
         },
         {
             "role": "user",
-            "content": (
+            "content": ( 
                 "次の解説文を評価してください。"
                 "解説文:"
                 f"===\n{question_text}\n==="
+                f"{question_text}\n"
+                "===\n"
             )
         }
     ]
@@ -419,4 +423,83 @@ def check_explanation_question_include_keyword(question_text: str) -> dict:
         return json.loads(response.json()['choices'][0]['message']['content'])  # JSONレスポンスを返す
     except Exception as e:
         logger.error(f"response[{response.json()}]") if response else logger.error("response is None")
+        raise e
+
+
+def check_tekitou_exact_match_in_question_statement(content: str) -> dict:
+    """
+    表現内に「適当」に類似する表現が含まれている場合、評価対象とし、その使用状況を確認。
+    表現内に「適当」が正しく使われていない場合、不適切な単語をリストアップ。
+
+    Args:
+        content (str): 入力された文章（問題文と解説文が含まれる）。
+
+    Returns:
+        dict: 評価結果を含むJSON形式の辞書。
+    """
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは設問の説明を読んでおかしいところがないか解析するロボットです。"
+                "「適当なものを選ぶ」、「適当でないなものを選ぶ」のように、選択の基準を示す文脈で、"
+                "「適当」という言葉が使われていること「適切」、「最適」が使われていない事"
+                "「適当」という言葉が使われていなければ、「適当」と似ている単語をincorrect_usagesにリスト化しします。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の文章は設問と各問があります。この内、設問文から「適当」という言葉が使用されているか判断してください。\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "KeywordAnalysisResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_evaluated": {
+                    "type": "boolean",
+                    "description": "設問文の表現で、「適当」と類似する表現が含まれている場合は、True に設定し、含まれていない場合は False に設定してください。",
+                },
+                "is_exact_match": {
+                    "type": "boolean",
+                    "description": "設問文の表現で、「適当」がそのまま使われていれば、True に設定し、そうでなければ False に設定してください。"
+                },
+                "incorrect_usages": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "設問文の表現で、「適当」がそのまま使われていない場合、is_evaluatedで似ていると判断した単語それらをすべてリストしてください。"
+                }
+            },
+            "required": ["is_evaluated", "is_exact_match", "incorrect_usages"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return response.json()  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
         raise e

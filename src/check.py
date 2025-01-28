@@ -308,3 +308,139 @@ def check_explanation_of_questions_include_word(doc: Document):
             if error_message:
                 # 表記ゆれエラーを返す
                 return InvalidItem(type="解説文での表記ゆれエラー", message=error_message)
+
+def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
+    """設問に正しく「適当」が使用されているかチェックする"""
+    result = ""
+    combined_questions = []
+    for paragraphs in paragraphs_lists:
+        for paragraph in paragraphs:
+            paragraph_text = paragraph.text.strip()
+            if paragraph_text.startswith("問"):
+                if result:
+                    combined_questions.append(result.strip())
+                result = paragraph_text
+            else:
+                result += "\n" + paragraph_text
+    if result:
+        combined_questions.append(result.strip())
+
+    # 出力結果
+    for _ , combined in enumerate(combined_questions, start=1):
+        result = json.loads(src.llm_util.check_tekitou_exact_match_in_question_statement(combined)["choices"][0]["message"]["content"])        
+        if result["is_evaluated"] is True and result["is_exact_match"] is False:
+            error_words = ",".join(result["incorrect_usages"])
+            return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')
+        
+def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
+    """「問~」がMSゴシックかチェック
+    """
+    for paragraph in paragraphs:
+        buffer = src.doc_util.font_analyzer(docx_file_path, paragraph)  # 段落内のテキスト情報を一時的に保持する
+        question_no = None  # 検出した「問〇」の番号を格納する変数
+
+        # 段落全体のテキストを結合
+        combined_text = "".join([content["text"] for content in buffer])
+
+        kanji_numbers = [
+            "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+            "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"
+        ][::-1]
+
+        # 「問〇」の形式を検出
+        for kanji in kanji_numbers:
+            keyword = f"問{kanji}"
+            if keyword in combined_text:
+                question_no = keyword
+                break
+
+        # 判定
+        if question_no is not None:
+            buffer_question_no = ""
+            for content in buffer:
+                if buffer_question_no == keyword:
+                    break
+                if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
+                    return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
+                buffer_question_no += content["text"]
+
+def convert_kanji_number_to_int(kanji_number)->int:
+    """漢数字を数値に変換する
+    不正な値があった場合はValueErrorを返す
+    """
+    kanji_map = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+    if len(kanji_number) == 1:
+        return kanji_map[kanji_number]
+    
+    elif len(kanji_number) == 2:
+        if kanji_number == "十十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        
+        if kanji_number[0] == "十":
+            return 10 + kanji_map[kanji_number[1]]
+        
+        elif kanji_number[1] == "十":
+            return kanji_map[kanji_number[0]] * 10
+        else:
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+    elif len(kanji_number) == 3:
+        # 3文字の場合、1文字目に"一"がある場合は不正
+        if kanji_number[0] == "一":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        
+        # 3文字の場合、"十"は必ず2文字目になるはず、1文字目、3文字目はNG"
+        # 三十一"はOK "十一二","一二十"はNG
+        if kanji_number[0] == "十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        if kanji_number[1] != "十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+        if kanji_number[2] == "十":
+            raise ValueError(f"不正な漢数字です: {kanji_number}")
+
+
+        return kanji_map[kanji_number[0]] * 10 + kanji_map[kanji_number[2]]
+    else:
+        raise ValueError(f"不正な漢数字です: {kanji_number}")
+    
+def check_number_order(numbers:List[int], kanji_index:List[str]) -> None:
+    """整数のリストが連番になっているかをチェックする
+    """
+    for i in range(1, len(numbers)):
+        if numbers[i] != numbers[i-1] + 1:
+            yield InvalidItem(type="問の番号不正", message=f"問題番号が連番になっていません: {kanji_index[i-1]}の次に{kanji_index[i]}があります")
+
+# 問の漢数字パターン
+kanji_question_pattern = re.compile(r"問([一二三四五六七八九十]+)")
+
+def check_kanji_question_index_order(paragraphs: List[object]) -> None:
+    """段落が「問[漢数字]」で始まり、順番通りになっているかチェック"""
+    integers = []
+    kanji_index = [] # 問の漢数字を保持するリストメッセージ出力用に利用する
+
+    errors = []
+    for paragraph in paragraphs:
+
+        text = "".join(paragraph.text)
+        if text.startswith("問"):
+            match = kanji_question_pattern.match(text)
+            if match:
+                kanji = match.group(1)
+                kanji_index.append(kanji)
+                try:
+                    int_value = convert_kanji_number_to_int(kanji)
+                    integers.append(int_value)
+                except ValueError as e:
+                    errors.append(InvalidItem(type="問の番号不正", message=str("len({kanji_index}+1)番目の問の番号の漢数字が不正です: {kanji}")))
+            else:
+                # textを" "または"、"、"。”、"　"で分割して、最初の要素を取得する
+                invalid_index = re.split(r"[、　。 ]", text)[0]
+                errors.append(InvalidItem(type="問の番号不正", message=f"問の番号が漢数字になっていません: {invalid_index}"))
+    # integersの整数の値が1からの連番になっているかをチェックする
+    if integers[0] != 1:
+        errors.append(InvalidItem(type="問の番号不正", message=f"問の番号が一から始まっていません: {kanji_index[0]}"))
+    # 連番チェック
+    order_error = check_number_order(integers, kanji_index) 
+    for oe in order_error:
+        errors.append(oe)
+
+    return errors
