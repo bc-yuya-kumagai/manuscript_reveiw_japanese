@@ -421,3 +421,66 @@ def check_tekitou_exact_match_in_question_statement(content: str) -> dict:
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
+
+def check_phrase_in_writing_question(question_text: str) -> dict:
+    """漢字の書き取り設問で、「（楷書ではっきり大きく書くこと。）」の指示があるかチェック"""
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から指定された条件があるかチェックするボットです。"
+                "漢字の書き取り問題かどうか、また指定された指示が含まれているかの2つを判断します。"
+                "※書き取り問題とは、カタカナを漢字に直す問題のことで、「カタカナを漢字に改めよ。」のような表現が使用されている。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の問題文に「（楷書ではっきり大きく書くこと。）」という指示があるかどうか判定します。\n"
+                "===\n"
+                f"{question_text}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "KanjiWritingResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_target_evaluation": {
+                    "type": "boolean",
+                    "description": "漢字の書き取り問題であれば True そうでなければ False とします。"
+                },
+                "is_valid": {
+                    "type": "boolean",
+                    "description": "問題文に「（楷書ではっきり大きく書くこと。）」という指示が含まれていればTrue、そうでない場合はFalse"
+                },
+            },
+            "required": ["is_target_evaluation", "is_valid"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e

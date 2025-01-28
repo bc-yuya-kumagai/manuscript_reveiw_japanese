@@ -98,9 +98,9 @@ def analyze_docx(docx_file_path: str):
         invalid_list.append(check_heading_question_font_item)
 
     # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
-    check_phrase = ck.check_phrase_in_kanji_question(extract_paragraphs)
-    if isinstance(check_phrase, InvalidItem):
-        invalid_list.append(check_phrase)
+    check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
+    if isinstance(check_writing_kanji_phrase_error, InvalidItem):
+        invalid_list.append(check_writing_kanji_phrase_error)
 
     # 設問番号が順番通りになっているかチェック
     extract_paragraphs = doc_util.extract_question_paragraphs(doc)
