@@ -86,6 +86,11 @@ def analyze_docx(docx_file_path: str):
         if isinstance(result_check_font_of_unfit_item, InvalidItem):
             invalid_list.append(result_check_font_of_unfit_item)
 
+    # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
+    check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
+    if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
+        invalid_list.append(check_keyword_exact_match_in_question_statement)
+
     # 「問~」がMSゴシックかチェック
     extract_paragraphs = doc_util.extract_question_paragraphs(doc)
     check_heading_question_font_item = ck.check_heading_question_font(docx_file_path, extract_paragraphs)
