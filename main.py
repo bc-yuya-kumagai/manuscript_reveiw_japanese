@@ -98,7 +98,7 @@ def analyze_docx(docx_file_path: str):
         invalid_list.append(check_heading_question_font_item)
 
     # 記述設問の際、解説のポイントが存在しているかチェック
-    check_answer_point = ck.check_answer_contains_points(question_texts)
+    check_answer_point = ck.check_answer_contains_points(doc)
     if isinstance(check_answer_point, InvalidItem):
         invalid_list.append(check_answer_point)
 
