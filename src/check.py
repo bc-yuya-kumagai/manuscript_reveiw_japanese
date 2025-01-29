@@ -320,6 +320,7 @@ def check_question_sentence_word_count(question_texts, answer_texts):
     target_answers = [a for a in answer_list if a['is_target_evaluation']]
     
     # 質問番号をキーにした辞書を作成（高速なアクセスのため）
+    question_dict = {q['question_no']: q for q in target_questions}
     answer_dict = {a['question_no']: a for a in target_answers}
     
     # 質問リストをループして得点の一致を確認
@@ -345,6 +346,15 @@ def check_question_sentence_word_count(question_texts, answer_texts):
                 'reason': '文字数が一致していません。'
             })
     
+    # 解説リストをループして、解説にのみ言及されている文字数がないか確認
+    for answer in target_answers:
+        answer_no = answer['question_no']
+        if answer_no not in question_dict:
+            mismatched_word_count.append({
+                'question_no': answer_no,
+                'reason': '解説文にのみ文字数が言及されています。'
+            })
+            
     # 結果を返す
     if len(mismatched_word_count) > 0:
         problem_message= ""
