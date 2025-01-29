@@ -286,8 +286,6 @@ def check_exists_annotation(doc: Document):
     is_collecting_annotations = False
     for paragraph in doc.paragraphs:
         if paragraph.text.startswith("（注）"):
-            is_collecting_annotations = True
-        if is_collecting_annotations:
             if paragraph.text.startswith("問"):
                 break
             for line in paragraph.text.split("\n"):
