@@ -5,6 +5,7 @@ from typing import List
 import src.llm_util
 from docx.text.paragraph import Paragraph
 import json
+from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -284,6 +285,38 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+def check_phrase_in_kanji_writing_question(question_texts: Document):
+    """
+    設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします。
+
+    Args:
+        question_texts (Document): チェック対象の設問データ。
+
+    Returns:
+        InvalidItem: 指定フレーズが不足している場合のエラーメッセージを含むオブジェクト。
+    """
+    # 設問内の段落ごとに処理を行う
+    for paragraphs in question_texts:
+        # 各段落のテキストを改行で結合して一つの設問テキストを作成
+        question_text = "\n".join(paragraph.text for paragraph in paragraphs)
+        
+        # 現代仮名遣いの指定フレーズが含まれているかチェック
+        result = src.llm_util.check_phrase_in_writing_question(question_text)
+        
+        # 条件を満たす場合、エラーを生成
+        if result["is_target_evaluation"] and not result["is_valid"]:
+            # エラー表示用に設問テキストの先頭行を取得（最大15文字）
+            error_text_one_line = question_text.splitlines()[0][:15]
+            # 15文字を超える場合は末尾を "..." に丸める
+            if len(question_text.splitlines()[0]) > 15:
+                error_text_one_line = error_text_one_line[:12] + "..."
+            
+            # エラーメッセージを追加
+            error_text = f"「{error_text_one_line}」付近で、「（楷書ではっきり大きく書くこと。）」というフレーズが不足しています。\n"
+
+            # エラー内容を含むオブジェクトを返す
+            return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
 
 def convert_kanji_number_to_int(kanji_number)->int:
     """漢数字を数値に変換する
