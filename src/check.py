@@ -10,8 +10,7 @@ from docx import Document
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 本文から傍注のテキストを抜き出す正規表現をコンパイル
-annotation_text_pattern = re.compile(r"（注[^）]*）.*?。")
+
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -266,9 +265,11 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                     return InvalidItem(type="フォント不正", message=f'「問~」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
 
+# 本文から傍注のテキストを抜き出す正規表現をコンパイル
+annotation_extend_main_text_pattern = re.compile(r"（注[^）]*）.*?。")
 def check_exists_annotation(doc: Document):
     """
-    傍注が本文内に正しく含まれているか検査する関数。
+    傍注が本文内にすべて含まれているか検査する関数。
 
     Parameters:
         doc (Document): チェック対象のドキュメントオブジェクト。
@@ -277,42 +278,34 @@ def check_exists_annotation(doc: Document):
         InvalidItem: 傍注が本文内に含まれていない場合のエラー情報。
         None: 全ての傍注が本文内に正しく含まれている場合。
     """
+    # 本文と傍注を抽出
+    main_texts_and_annotation_texts = src.doc_util.extract_main_text(doc)
 
-    # 本文を抽出
-    main_texts = src.doc_util.extract_main_text(doc)
-
-    # 傍注リストを説明箇所から抽出
-    annotation_names = []
-    is_collecting_annotations = False
-    for paragraph in doc.paragraphs:
-        if paragraph.text.startswith("（注）"):
-            if paragraph.text.startswith("問"):
-                break
-            for line in paragraph.text.split("\n"):
-                words = line.split()
-                if len(words) > 1 and words[1]:
-                    annotation_names.append(words[1])
-
-    # 本文中から傍注の文章を抽出
+    # # 本文中から傍注の文章を抽出
     annotation_sentences = []
-    for main_text in main_texts:
-        matches = annotation_text_pattern.findall(main_text.text)
-        if matches:
-            annotation_sentences.extend(matches)
+    missing_annotations = []  # 本文内に存在しない傍注のリスト
+    found_count = 0  # 本文内に存在する傍注の数
+    for main_text_and_annotation in main_texts_and_annotation_texts:
+        # 本文と傍注から傍注のみを抽出
+        annotation_list = src.doc_util.extract_annotation_text_to_list(main_text_and_annotation)
+        # 本文と傍注から本文のみを抽出
+        main_text_list = src.doc_util.extract_main_text_and_annotation_to_main_text(main_text_and_annotation)
+        
+        # 本文中から傍注の文章を抽出
+        annotation_sentences = [] # 本文から傍注部分を抽出し格納するリスト
+        for paragraph in main_text_list:
+            matches = annotation_extend_main_text_pattern.findall(paragraph.text)
+            if matches:
+                annotation_sentences.extend(matches)
 
-    # 評価
-    missing_annotations = []
-    found_count = 0
-
-    # 傍注リストの各項目が本文内に存在するかチェック
-    for annotation_name in annotation_names:
-        occurrence_count = sum(annotation_name in sentence for sentence in annotation_sentences)
-
-        # 傍注が本文内に存在しない場合
-        if occurrence_count == 0:
-            missing_annotations.append(annotation_name)
-        else:
-            found_count += occurrence_count
+        # 傍注リストの各項目が本文内に存在するかチェック
+        for annotation_name in annotation_list:
+            occurrence_count = sum(annotation_name in sentence for sentence in annotation_sentences)
+            # 傍注が本文内に存在しない場合
+            if occurrence_count == 0:
+                missing_annotations.append(annotation_name)
+            else:
+                found_count += occurrence_count
 
     # OKの数と本文内の傍注数が一致しているか確認
     if found_count != len(annotation_sentences) and missing_annotations:
