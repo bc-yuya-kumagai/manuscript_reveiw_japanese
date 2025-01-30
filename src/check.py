@@ -12,7 +12,6 @@ from docx import Document
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 # 大問の点数を取得する正規表現
-part_extract_score_pattern = re.compile(r"（配点\s*([一二三四五六七八九〇]+)）")
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -367,40 +366,37 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                     return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
 
-def check_part_question_score(doc:Document):
+def check_part_question_score(question_doc:Document, answer_doc:Document):
     
-    # 冒頭の説明部分を取得
-    document = ""
-    for p in doc.paragraphs:
-        if p.text in "【文章":
-            break
-        document += p.text
+    main_score_list = src.doc_util.extract_question_number(question_doc)
+    answer_score_list = src.doc_util.extract_question_number(answer_doc)
+
+    question_dict = {q["question_title"]: q["question_score"] for q in main_score_list}
+    answer_dict = {a["question_title"]: a["question_score"] for a in answer_score_list}
     
-    # 配点から点数を取得
-    if part_extract_score_pattern:
-        extracted_text = part_extract_score_pattern.search(document)
-        extracted_text = extracted_text.group(1)
+    # 問題にあるのに解答にないもの
+    missing_in_answer = [q for q in question_dict if q not in answer_dict]
+    
+    # 解答にあるのに問題にないもの
+    extra_in_answer = [a for a in answer_dict if a not in question_dict]
+    
+    # 点数不一致のリスト
+    score_mismatch = {
+        q: (question_dict[q], answer_dict[q])
+        for q in question_dict if q in answer_dict and question_dict[q] != answer_dict[q]
+    }
+    
+    error_messages = []
+    if missing_in_answer:
+        error_messages.append(f'問題にあるが解答にない: {missing_in_answer}')
+    if extra_in_answer:
+        error_messages.append(f'解答にあるが問題にない: {extra_in_answer}')
+    if score_mismatch:
+        error_messages.append(f'点数不一致: {score_mismatch}')
+    
+    if error_messages:
+        return InvalidItem(type="大問の配点検証エラー", message="; ".join(error_messages))
 
-        # 漢数字をアラビア数字に変換
-        kanji_to_number = {
-            "〇": 0,
-            "一": 1,
-            "二": 2,
-            "三": 3,
-            "四": 4,
-            "五": 5,
-            "六": 6,
-            "七": 7,
-            "八": 8,
-            "九": 9,
-        }
-        arabic_number = "".join(str(kanji_to_number[char]) for char in extracted_text if char in kanji_to_number)
-        print(arabic_number)
-
-        # 点数チェック
-        # 問Aは40点
-        if 40 != arabic_number:
-            return InvalidItem(type="大問配点不備", message='大問の配点が指定された点数ではありません。')
 def check_phrase_in_kanji_writing_question(question_texts: Document):
     """
     設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします。

@@ -107,11 +107,6 @@ def analyze_docx(docx_file_path: str):
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
 
-    # 大問の配点をチェックする。 問Aは40点のため直書きしている。問題の種別によって配点すべき点数を変える場合、問題がどの種類かの特定が必要。
-    part_question_score_check = ck.check_part_question_score(doc)
-    if isinstance(part_question_score_check, InvalidItem):
-        invalid_list.append(part_question_score_check)
-
     # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
     check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
     if isinstance(check_writing_kanji_phrase_error, InvalidItem):
@@ -134,6 +129,30 @@ def analyze_docx(docx_file_path: str):
         result["message"] = "問題なし"
     return result
 
+def analyze_qa_docx_check( question_file_path: str, answer_file_path: str ):
+    """
+    問題と解説同士を比較するための関数
+    """
+    question_doc = Document(question_file_path)
+    answer_doc = Document(answer_file_path)
+
+    invalid_list = []
+    # 大問の配点をチェックする。
+    part_question_score_check = ck.check_part_question_score(question_doc, answer_doc)
+    if isinstance(part_question_score_check, InvalidItem):
+        invalid_list.append(part_question_score_check)
+
+       # 結果整形
+    result = {"errors":[]}
+    if invalid_list:
+        for i in invalid_list:
+            if isinstance(i, InvalidItem):
+                result["errors"].append({"type": i.type, "message": i.message})
+
+    else:
+        result["message"] = "問題なし"
+    return result     
+
 
 @app.get("/", response_class=HTMLResponse)
 async def home_page():
@@ -145,6 +164,14 @@ async def home_page():
             <h1>Wordファイルアップロード</h1>
             <form action="/upload" enctype="multipart/form-data" method="post">
             <input name="docx_file" type="file" accept=".docx">
+            <input type="submit" value="アップロードしてチェック">
+            </form>
+            <h1>問題と解説のアップロード</h1>
+            <form action="/upload_with_answers" enctype="multipart/form-data" method="post">
+            <label for="question_file">問題ファイル:</label>
+            <input name="question_file" type="file" accept=".docx"><br>
+            <label for="answer_file">解説ファイル:</label>
+            <input name="answer_file" type="file" accept=".docx"><br>
             <input type="submit" value="アップロードしてチェック">
             </form>
         </body>
@@ -179,4 +206,27 @@ async def upload_and_check(docx_file: UploadFile = File(...)):
         # 一時ファイル削除
         delete_temp_file(temp_file_path)
 
+    return result
+
+@app.post("/upload_with_answers")
+async def upload_with_answers(
+    question_file: UploadFile = File(...),
+    answer_file: UploadFile = File(...),
+):
+    """問題と解説両方をチェックする必要がある場合のエンドポイント"""
+    # ファイルタイプのチェック
+    for file in [question_file, answer_file]:
+        if file.content_type not in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{file.filename}はdocxファイルではありません")
+
+    # 一時ファイルの保存
+    question_file_path = await save_temp_file(question_file)
+    answer_file_path = await save_temp_file(answer_file)
+    try:
+        # 分析実行
+        result = analyze_qa_docx_check(question_file_path, answer_file_path)
+    finally:
+        # 一時ファイル削除
+        delete_temp_file(question_file_path)
+        delete_temp_file(answer_file_path)
     return result

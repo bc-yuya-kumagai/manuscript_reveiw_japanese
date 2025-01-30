@@ -566,3 +566,68 @@ def check_phrase_in_writing_question(question_text: str) -> dict:
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
+
+def extract_main_score_from_text(question_main_text: str) -> dict:
+    """問題文から問題のタイトル文章と配点を抜き出す"""
+
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から指定された条件があるかチェックするボットです。"
+                "「一　現代文（評論）」のような問題のタイトル文章があれば、それを抜き出してください。漢数字 + スペース + 国語の科目名(？？)のようになっている箇所を探して抜き出します。"
+                "配点が書かれていなければ、Noneで返し、書かれていればアラビア数字で返します。"
+                "スペースは半角にしてください。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下のテキストから問題のタイトル文章と、配点を抜き出します。\n"
+                "===\n"
+                f"{question_main_text}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "ExtractMainScoreResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "question_title": {
+                    "type": "string",
+                    "description": "問題文のタイトル文章を抜き出します。スペースは半角でお願いします。"
+                },
+                "question_score": {
+                    "type": "integer",
+                    "description": "問題文の配点を抜き出します。"
+                },
+            },
+            "required": ["question_title", "question_score"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
