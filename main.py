@@ -38,9 +38,6 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
     # チェックエラーリスト
     invalid_list = []
 
-
-    print(problem_doc)
-    print(temp_problem_file_path)
     # 問題のみのチェック
     if problem_doc:
         # 問の見出しが最初に始まる箇所を特定 <- これが、問題文と設問の境界になる
@@ -58,9 +55,16 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         # ページ区切り箇所にゴミが残るのでそれを削除
         passage_sideLine_list = doc_util.clean_sileline_list_in_page_break(passage_sideLine_list)
 
+        # 問のテキストを設問ごとにリストでの取得
+        question_texts = doc_util.get_questions(problem_doc)
 
         # 傍線部の添え字重複チェック
         invalid_list += ck.check_duplicated_index(passage_sideLine_list)
+
+        # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
+        check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
+        if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
+            invalid_list.append(check_keyword_exact_match_in_question_statement)
 
         # 傍線部の連番飛びチェック
         jumped = ck.check_jumped_index(passage_sideLine_list)
@@ -78,8 +82,7 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         if isinstance(result_sl_mapping, InvalidItem):
             invalid_list.append(result_sl_mapping)
 
-        # 問のテキストを設問ごとにリストでの取得
-        question_texts = doc_util.get_questions(problem_doc)
+
         # 選択肢のチェック
         for question in question_texts:
             question_text = "\n".join([q.text for q in question])
@@ -127,6 +130,32 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         if isinstance(check_exists_annotation_result, InvalidItem):
             invalid_list.append(check_exists_annotation_result)
 
+        # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
+        check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
+        if isinstance(check_writing_kanji_phrase_error, InvalidItem):
+            invalid_list.append(check_writing_kanji_phrase_error)
+
+        # 設問番号が順番通りになっているかチェック
+        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
+        check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
+        for error in check_kanji_number_orders:
+            invalid_list.append(error)
+
+    # 解説のみのチェック
+    if solution_doc:
+        # 問のテキストを設問ごとにリストでの取得
+        question_texts = doc_util.get_questions(solution_doc)
+
+        # 解説文に「正解」が含まれるかチェックし、含まれていたらエラーを返す
+        check_word_in_explanatory = ck.check_word_in_explanatory(question_texts)
+        if isinstance(check_word_in_explanatory, InvalidItem):
+            invalid_list.append(check_word_in_explanatory)
+
+        # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
+        check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
+        if isinstance(check_explanation_of_questions_error, InvalidItem):
+            invalid_list.append(check_explanation_of_questions_error)
+
     # 結果整形
     result = {"errors":[]}
     if invalid_list:
@@ -171,10 +200,6 @@ def delete_temp_file(file_path: str):
 
 @app.post("/upload")
 async def check_docx(problem_file: UploadFile = File(None), solution_file: UploadFile = File(None)):
-    # if problem_file.content_type not in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
-    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="docxファイルの問題ファイルをアップロードしてください")
-    # if solution_file.content_type not in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
-    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="docxファイルの解説ファイルをアップロードしてください")
     temp_problem_file_path = None
     temp_solution_file_path = None
     if problem_file:
