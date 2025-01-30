@@ -343,6 +343,116 @@ def check_choices2question_mapping(question_text:str):
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
+
+def extract_score_from_question_statement(content: str) -> dict:
+    """
+    大問および各問の得点を文章から抽出する関数。
+
+    この関数は、指定された文章から大問の得点と各問の得点を抽出します。
+    OpenAIのAPIを利用して文章を解析し、指定されたスキーマに従った構造化された
+    JSONデータとして結果を返します。
+
+    Args:
+        content (str): 得点を解析する対象の文章。
+
+    Returns:
+        dict: 
+            大問および各問の得点を含む辞書形式のデータ。
+            フォーマットは以下の通り：
+            {
+                "question_total_score": int,  # 全体の得点
+                "questions": [
+                    {
+                        "question_no": str,  # 問の識別子（例: 問1, 問2）
+                        "score": int,        # 該当問の得点
+                        "each_score": int    # 各点数（存在しない場合は0）
+                    }
+                ]
+            }
+
+    Raises:
+        Exception: APIリクエストが失敗した場合や、レスポンスのフォーマットが不正な場合に発生。
+    """
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは文章から得点を抜き出すためのボットです。"
+                "大問の得点と、各問の得点を抜き出してください。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の文章から大問の得点と、各問の得点を抜き出します。\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "ScoreResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "question_total_score": {
+                    "type": "integer",
+                    "description": "全体の得点を表します。"
+                },
+                "questions": {
+                    "type": "array",
+                    "description": "各問の得点を指定してください。",
+                    "items": {
+                        "type": "object",
+                        "description": "動的な問とその得点のペアを指定してください。",
+                        "properties": {
+                            "question_no": {
+                                "type": "string",
+                                "description": "問の識別子。例: 問1, 問2"
+                            },
+                            "score": {
+                                "type": "integer",
+                                "description": "問に対応する得点。"
+                            },
+                            "each_score": {
+                                "type": "integer",
+                                "description": "各個数があれば、個数を指定してください。無ければ、0を返します。"
+                            }
+                            
+                        },
+                        "required": ["question_no", "score","each_score"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["question_total_score", "questions"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
     
 
 def check_explanation_question_include_keyword(question_text: str) -> dict:

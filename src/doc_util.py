@@ -6,11 +6,12 @@ from docx.text.paragraph import Paragraph
 from lxml import etree
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
-
+import re
 
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
 # wordファイルから下線部のrunを抽出する
+kanji_number_pattern = re.compile(r"^[一二三四五六七八九十]+")
 
 def get_underline_runs(doc,first_paragraph_index:int,last_paragraph_index:int):
     """ first_paragraph_indexとlast_paragraph_indexの間で underlined runを取得する
@@ -385,6 +386,31 @@ def find_theme_font_schemas(word_file_path):
         'majorFont': major_font,
         'minorFont': minor_font
     }
+
+
+def get_paragraph_question_and_score_text(doc:Paragraph):
+    """段落から問題文と配点を取得する"""
+
+    # 結果を格納する文字列
+    result = ""
+    stop_keyword = "●本文解説"
+    # ドキュメントの段落をループ
+    for p in doc.paragraphs:
+        text = p.text.strip()
+        
+        # ●本文解説が来たら処理を停止
+        if stop_keyword in text:
+            break
+        
+        # 大問の検出（漢数字で始まる場合）
+        if kanji_number_pattern.match(text):
+            result += text + "\n"  # 大問を結果に追加
+        
+        # 小問の検出（「問」で始まる場合）
+        elif text.startswith("問"):
+            result += text + "\n"  # 小問を結果に追加
+            
+    return result
 
 # 使用例
 if __name__ == "__main__":
