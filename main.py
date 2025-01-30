@@ -86,6 +86,16 @@ def analyze_docx(docx_file_path: str):
         if isinstance(result_check_font_of_unfit_item, InvalidItem):
             invalid_list.append(result_check_font_of_unfit_item)
 
+    # 解説文に「正解」が含まれるかチェックし、含まれていたらエラーを返す
+    check_word_in_explanatory = ck.check_word_in_explanatory(question_texts)
+    if isinstance(check_word_in_explanatory, InvalidItem):
+        invalid_list.append(check_word_in_explanatory)
+
+    # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
+    check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(doc)
+    if isinstance(check_explanation_of_questions_error, InvalidItem):
+        invalid_list.append(check_explanation_of_questions_error)
+
     # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
     check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
     if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
@@ -96,6 +106,11 @@ def analyze_docx(docx_file_path: str):
     check_heading_question_font_item = ck.check_heading_question_font(docx_file_path, extract_paragraphs)
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
+
+    # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
+    check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
+    if isinstance(check_writing_kanji_phrase_error, InvalidItem):
+        invalid_list.append(check_writing_kanji_phrase_error)
 
     # 設問番号が順番通りになっているかチェック
     extract_paragraphs = doc_util.extract_question_paragraphs(doc)
