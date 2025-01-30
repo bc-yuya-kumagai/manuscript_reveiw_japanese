@@ -1,8 +1,9 @@
 import unittest
 from src.check import check_choices_mapping
 from src.doc_util import  extract_question_paragraphs
-from src.check import check_heading_question_font
+from src.check import check_heading_question_font,convert_kanji_number_to_int
 from docx import Document
+from src.check import InvalidItem
 
 # テスト対象のサンプルファイルパス
 SAMPLE_DOCX_PATH = "tests/resources/スタイル付_【問題A】自動原稿整理PoC_サンプル原稿（指摘箇所コメント付）.docx"
@@ -110,6 +111,47 @@ class TestCanConstructFromIndexLists(unittest.TestCase):
         results = list(check_choices_mapping(question_text))
         assert len(results) == 0
 
+class TestConvertKanjiNumberToInt(unittest.TestCase):
+    def test_convert_kanji_number_to_int_valid_len1(self):
+
+        results = convert_kanji_number_to_int("二")
+        assert results == 2
+        results = convert_kanji_number_to_int("十")
+        assert results == 10
+
+    def test_convert_kanji_number_to_int_valid_len2(self):
+
+        results = convert_kanji_number_to_int("十一")
+        assert results == 11
+
+        results = convert_kanji_number_to_int("十五")
+        assert results == 15
+        
+        results = convert_kanji_number_to_int("五十")
+        assert results == 50
+    
+    def test_convert_kanji_number_to_int_invalid_len2_startwith10(self):
+        with self.assertRaises(ValueError):
+            results = convert_kanji_number_to_int("三三")   
+
+    def test_convert_kanji_number_to_int_valid_len3(self):
+        results = convert_kanji_number_to_int("五十三")
+        assert results == 53
+
+    def test_convert_kanji_number_to_int_invalid_len3_error_start_with_1(self):
+        with self.assertRaises(ValueError):
+            results = convert_kanji_number_to_int("一十三")
+    
+    def test_convert_kanji_number_to_int_invalid_len3_error_start_with_1(self):
+        with self.assertRaises(ValueError):
+            results = convert_kanji_number_to_int("十一三")
+    def test_convert_kanji_number_to_int_invalid_len3_error_start_with_1(self):
+        with self.assertRaises(ValueError):
+            results = convert_kanji_number_to_int("一三十")
+    def test_convert_kanji_number_to_int_invalid_len3_error_start_with_1(self):
+        with self.assertRaises(ValueError):
+            results = convert_kanji_number_to_int("一三十")
+            
 def test_heading_font_check():
     """既存のサンプルファイルを用いて font_analyzer 関数をテストする。"""
     doc = Document(SAMPLE_DOCX_PATH)
@@ -120,6 +162,7 @@ def test_heading_font_check():
 
     # 結果が None であることを期待
     assert check_heading_question_font_item is None, f"check_heading_question_font の結果が None ではありません: {check_heading_question_font_item}"
+
 
 
 if __name__ == '__main__':
