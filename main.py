@@ -159,6 +159,10 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
             invalid_list["solution"].append(check_explanation_of_questions_error)
 
     # 結果整形
+    for category in ["problem", "solution", "common"]:
+        invalid_list[category] = [error for error in invalid_list[category] if error is not None]
+
+    # 空リストの場合は "問題なし" をセット
     result = {
         category: errors if errors else [{"message": "問題なし"}]
         for category, errors in invalid_list.items()
