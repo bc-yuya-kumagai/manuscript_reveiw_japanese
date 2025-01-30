@@ -343,9 +343,9 @@ def check_kanji_question_index_order(paragraphs: List[object]) -> None:
 
     return errors
 
-def check_kanji_reading_missing_expressions(doc: Document):
+def check_kanji_reading_missing_expressions(question_texts: Document):
     error_text = ""
-    for paragraphs in doc:
+    for paragraphs in question_texts:
         question_text = ""
         for paragraph in paragraphs:
             question_text += str(paragraph.text) + "\n"
