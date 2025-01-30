@@ -390,14 +390,9 @@ def extract_annotation_text_to_list(annotation_paragraph: Document) -> list[str]
                 line = line.lstrip()
                 if line.startswith("（注）"):
                     line = line[3:]  # 「（注）」を削除
-                
-                if annotation_pattern.match(line):  # 指定のパターンに合致する場合
-                    parts = line.split("――")  # 全角スペースで分割
-                    if len(parts) > 1:  # 2つ以上の要素があるか確認
-                        annotation_names.append(parts[0].split("　")[1])  # 2つ目の要素を取得
-                    else:
-                        is_collecting_annotations = False  # フォーマット違いの行が出たら収集停止
-                        break  # ループを抜ける
+                parts = line.split("――")  # 全角スペースで分割
+                if len(parts) > 1:  # 2つ以上の要素があるか確認
+                    annotation_names.append(parts[0].split("　")[1])  # 2つ目の要素を取得
                 else:
                     is_collecting_annotations = False  # フォーマット違いの行が出たら収集停止
                     break  # ループを抜ける
