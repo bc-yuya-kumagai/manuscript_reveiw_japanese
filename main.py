@@ -32,11 +32,15 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
     solution_doc = []
     if temp_problem_file_path:
         problem_doc = Document(temp_problem_file_path)
-    if solution_doc:
+    if temp_solution_file_path:
         solution_doc = Document(temp_solution_file_path)
 
     # チェックエラーリスト
-    invalid_list = []
+    invalid_list = {
+        "problem": [],  # 問題のチェックエラー
+        "solution": [],  # 解説のチェックエラー
+        "common": []  # 問題・解説共通のチェックエラー
+    }
 
     # 問題のみのチェック
     if problem_doc:
@@ -59,28 +63,28 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         question_texts = doc_util.get_questions(problem_doc)
 
         # 傍線部の添え字重複チェック
-        invalid_list += ck.check_duplicated_index(passage_sideLine_list)
+        invalid_list["problem"] += ck.check_duplicated_index(passage_sideLine_list)
 
         # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
         check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
         if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
-            invalid_list.append(check_keyword_exact_match_in_question_statement)
+            invalid_list["problem"].append(check_keyword_exact_match_in_question_statement)
 
         # 傍線部の連番飛びチェック
         jumped = ck.check_jumped_index(passage_sideLine_list)
         if isinstance(jumped,InvalidItem):
-            invalid_list.append(jumped)
+            invalid_list["problem"].append(jumped)
 
         # 傍線部の添え字が設問内で参照されているかチェック
         slideline_questions = list(doc_util.get_paragraph_text_by_keyword(problem_doc, "傍線部"))
         result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
         if isinstance(result_sl_mapping, InvalidItem):
-            invalid_list.append(result_sl_mapping)
+            invalid_list["problem"].append(result_sl_mapping)
 
         # 設問内の添字が問題文中にあるかチェック
         result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
         if isinstance(result_sl_mapping, InvalidItem):
-            invalid_list.append(result_sl_mapping)
+            invalid_list["problem"].append(result_sl_mapping)
 
 
         # 選択肢のチェック
@@ -88,83 +92,78 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
             question_text = "\n".join([q.text for q in question])
             if ck.get_question_type(question_text) == "選択式":
                 errors = ck.check_choices_mapping(question)
-                invalid_list.extend(errors)
+                invalid_list["problem"].extend(errors)
         
         # 選択肢に重複や歯抜けがないかチェック
         for question in question_texts:
             question_text = "\n".join([q.text for q in question])
             if ck.get_question_type(question_text) == "選択式":
                 errors = ck.check_choices_sequence(question)
-                invalid_list.append(errors)
+                invalid_list["problem"].append(errors)
                 
         # 「適当でないもの」がMSゴシックであるかチェック
         for question in question_texts:
             result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
             if isinstance(result_check_font_of_unfit_item, InvalidItem):
-                invalid_list.append(result_check_font_of_unfit_item)
+                invalid_list["problem"].append(result_check_font_of_unfit_item)
 
         # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
         check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
         if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
-            invalid_list.append(check_keyword_exact_match_in_question_statement)
+            invalid_list["problem"].append(check_keyword_exact_match_in_question_statement)
 
         # 「問~」がMSゴシックかチェック
         extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
         check_heading_question_font_item = ck.check_heading_question_font(temp_problem_file_path, extract_paragraphs)
         if isinstance(check_heading_question_font_item, InvalidItem):
-            invalid_list.append(check_heading_question_font_item)
+            invalid_list["problem"].append(check_heading_question_font_item)
 
         # 設問番号が順番通りになっているかチェック
         extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
         check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
         for error in check_kanji_number_orders:
-            invalid_list.append(error)
+            invalid_list["problem"].append(error)
 
         # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
         check_phrase = ck.check_phrase_in_kanji_question(extract_paragraphs)
         if isinstance(check_phrase, InvalidItem):
-            invalid_list.append(check_phrase)
+            invalid_list["problem"].append(check_phrase)
 
         #傍注の説明の内容が本文に入っているかチェック
         check_exists_annotation_result = ck.check_exists_annotation(problem_doc)
         if isinstance(check_exists_annotation_result, InvalidItem):
-            invalid_list.append(check_exists_annotation_result)
+            invalid_list["problem"].append(check_exists_annotation_result)
 
         # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
         check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
         if isinstance(check_writing_kanji_phrase_error, InvalidItem):
-            invalid_list.append(check_writing_kanji_phrase_error)
+            invalid_list["problem"].append(check_writing_kanji_phrase_error)
 
         # 設問番号が順番通りになっているかチェック
         extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
         check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
         for error in check_kanji_number_orders:
-            invalid_list.append(error)
+            invalid_list["problem"].append(error)
 
     # 解説のみのチェック
     if solution_doc:
-        # 問のテキストを設問ごとにリストでの取得
-        question_texts = doc_util.get_questions(solution_doc)
 
         # 解説文に「正解」が含まれるかチェックし、含まれていたらエラーを返す
-        check_word_in_explanatory = ck.check_word_in_explanatory(question_texts)
+        check_word_in_explanatory = ck.check_explanation_of_questions_include_word(solution_doc)
         if isinstance(check_word_in_explanatory, InvalidItem):
-            invalid_list.append(check_word_in_explanatory)
+            invalid_list["solution"].append(check_word_in_explanatory)
 
         # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
         check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
         if isinstance(check_explanation_of_questions_error, InvalidItem):
-            invalid_list.append(check_explanation_of_questions_error)
+            invalid_list["solution"].append(check_explanation_of_questions_error)
 
     # 結果整形
-    result = {"errors":[]}
-    if invalid_list:
-        for i in invalid_list:
-            if isinstance(i, InvalidItem):
-                result["errors"].append({"type": i.type, "message": i.message})
+    result = {
+        category: errors if errors else [{"message": "問題なし"}]
+        for category, errors in invalid_list.items()
+    }
 
-    else:
-        result["message"] = "問題なし"
     return result
 
 
