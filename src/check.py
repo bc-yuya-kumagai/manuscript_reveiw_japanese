@@ -1,9 +1,11 @@
 # チェック系の関数をまとめたモジュール
 import logging
 import re
+import src.doc_util
 from typing import List
 import src.llm_util
 from docx.text.paragraph import Paragraph
+import json
 from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -230,6 +232,106 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
         
+def check_word_in_explanatory(paragraphs:List[Paragraph]):
+    """解説文に「正解」が含まれるかチェックし、含まれていたらエラーを返す"""
+    # 加工した段落を格納するリスト
+    processed_paragraphs = []
+    # 「●設問解説」が見つかったかどうかのフラグ
+    found_keyword = False
+
+    # すべての段落を取得
+    for question in paragraphs:
+        for paragraph in question:
+              # 不要な空白を削除
+            paragraph_text = paragraph.text.strip()
+            if paragraph_text:
+                  # フラグが立っている場合、段落を追加
+                if found_keyword:
+                    processed_paragraphs.append(paragraph_text)
+                    # キーワードを発見した場合
+                elif "●設問解説" in paragraph_text:
+                    # フラグを立てる
+                    found_keyword = True
+                    processed_paragraphs.append(paragraph_text)
+
+    # 問ごとにグループ化
+    questions = {} 
+    # 現在の問
+    current_question = None
+
+    for paragraph in processed_paragraphs:
+        # 問の段落
+        if paragraph.startswith("問"):
+            # 現在の問を更新
+            current_question = paragraph
+            # 新しい問を追加
+            questions[current_question] = []
+        # 問以降の段落を追加
+        elif current_question:
+            questions[current_question].append(paragraph)
+
+    for question, details in questions.items():
+        for _, detail in enumerate(details, start=1):
+            response = src.llm_util.check_keyword_in_explanation(detail,"正解")
+            result = json.loads(response["choices"][0]["message"]["content"])
+            if result["isFind"] is True:
+                return InvalidItem(type="解説文での表記ゆれエラー", message=f'本来、"正解"にすべきところに別の文章が入っています。[{result["content"]}]')
+
+def check_explanation_of_questions_include_word(doc: Document):
+    """
+    解説文章の中に、「正答」以外の単語が含まれていないかをチェックします。
+    
+    Args:
+        doc (Document): 対象となる文書オブジェクト。
+    
+    Returns:
+        InvalidItem: 表記ゆれが検出された場合のエラー情報を返します。
+    """
+    # 解説文のリストを取得
+    explanation_question_list = src.doc_util.get_explanation_of_questions(doc)
+    # 各解説文についてチェック
+    for explanation_question_text in explanation_question_list:
+        # 解説文にキーワードが含まれているかをチェック
+        check_result = src.llm_util.check_explanation_question_include_keyword(explanation_question_text)
+        # 評価対象であり、キーワードが見つからない場合
+        if check_result["is_evaluation_target"] is True and check_result["is_keyword_found"] is False:
+            # エラー文を短縮して表示用に加工
+            if len(explanation_question_text) > 15:
+                error_text_one_line = explanation_question_text[:12] + "..."
+            else:
+                error_text_one_line = explanation_question_text
+            # エラーメッセージを構築
+            error_message = (
+                f"解説中の正答を述べている文章に、「正答」という単語が使われていない箇所があります。"
+                f"[「{error_text_one_line}」付近で誤って「{check_result['error_similar_words']}」のように使用されています。]\n"
+            )
+            if error_message:
+                # 表記ゆれエラーを返す
+                return InvalidItem(type="解説文での表記ゆれエラー", message=error_message)
+
+def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
+    """設問に正しく「適当」が使用されているかチェックする"""
+    result = ""
+    combined_questions = []
+    for paragraphs in paragraphs_lists:
+        for paragraph in paragraphs:
+            paragraph_text = paragraph.text.strip()
+            if paragraph_text.startswith("問"):
+                if result:
+                    combined_questions.append(result.strip())
+                result = paragraph_text
+            else:
+                result += "\n" + paragraph_text
+    if result:
+        combined_questions.append(result.strip())
+
+    # 出力結果
+    for _ , combined in enumerate(combined_questions, start=1):
+        result = json.loads(src.llm_util.check_tekitou_exact_match_in_question_statement(combined)["choices"][0]["message"]["content"])        
+        if result["is_evaluated"] is True and result["is_exact_match"] is False:
+            error_words = ",".join(result["incorrect_usages"])
+            return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')
+        
 def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
     """「問~」がMSゴシックかチェック
     """
@@ -261,6 +363,38 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+def check_phrase_in_kanji_writing_question(question_texts: Document):
+    """
+    設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします。
+
+    Args:
+        question_texts (Document): チェック対象の設問データ。
+
+    Returns:
+        InvalidItem: 指定フレーズが不足している場合のエラーメッセージを含むオブジェクト。
+    """
+    # 設問内の段落ごとに処理を行う
+    for paragraphs in question_texts:
+        # 各段落のテキストを改行で結合して一つの設問テキストを作成
+        question_text = "\n".join(paragraph.text for paragraph in paragraphs)
+        
+        # 現代仮名遣いの指定フレーズが含まれているかチェック
+        result = src.llm_util.check_phrase_in_writing_question(question_text)
+        
+        # 条件を満たす場合、エラーを生成
+        if result["is_target_evaluation"] and not result["is_valid"]:
+            # エラー表示用に設問テキストの先頭行を取得（最大15文字）
+            error_text_one_line = question_text.splitlines()[0][:15]
+            # 15文字を超える場合は末尾を "..." に丸める
+            if len(question_text.splitlines()[0]) > 15:
+                error_text_one_line = error_text_one_line[:12] + "..."
+            
+            # エラーメッセージを追加
+            error_text = f"「{error_text_one_line}」付近で、「（楷書ではっきり大きく書くこと。）」というフレーズが不足しています。\n"
+
+            # エラー内容を含むオブジェクトを返す
+            return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
 
 def convert_kanji_number_to_int(kanji_number)->int:
     """漢数字を数値に変換する
