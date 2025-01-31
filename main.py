@@ -138,6 +138,30 @@ def analyze_docx(docx_file_path: str):
         result["message"] = "問題なし"
     return result
 
+def analyze_qa_docx_check( question_file_path: str, answer_file_path: str ):
+    """
+    問題と解説同士を比較するための関数
+    """
+    question_doc = Document(question_file_path)
+    answer_doc = Document(answer_file_path)
+
+    invalid_list = []
+    # 大問の配点をチェックする。
+    part_question_score_check = ck.check_part_question_score(question_doc, answer_doc)
+    if isinstance(part_question_score_check, InvalidItem):
+        invalid_list.append(part_question_score_check)
+
+       # 結果整形
+    result = {"errors":[]}
+    if invalid_list:
+        for i in invalid_list:
+            if isinstance(i, InvalidItem):
+                result["errors"].append({"type": i.type, "message": i.message})
+
+    else:
+        result["message"] = "問題なし"
+    return result     
+
 
 @app.get("/", response_class=HTMLResponse)
 async def home_page():
