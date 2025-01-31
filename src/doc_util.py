@@ -6,7 +6,7 @@ from docx.text.paragraph import Paragraph
 from lxml import etree
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
-
+import src.llm_util as llm
 import re
 
 # 問の見出しスタイルID
@@ -387,6 +387,58 @@ def find_theme_font_schemas(word_file_path):
         'minorFont': minor_font
     }
 
+def kanji_number_to_arabic_number(kanji_numr:str):
+    """漢数字をアラビア数字に変換する"""
+    # 漢数字をアラビア数字に変換
+    kanji_to_number = {
+        "〇": 0,
+        "一": 1,
+        "二": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+    }
+    arabic_number = "".join(str(kanji_to_number[char]) for char in kanji_numr if char in kanji_to_number)
+    return arabic_number
+
+title_question = re.compile(r'^(?:【[^】]+】)?[一二三四五六七八九十百千]+　[^\s　]+(?:　[^\s　]+)*')
+def extract_question_number(doc):
+    """設問番号を抽出する"""
+    question_main_score_list = []
+    found = False
+    question_text = ""
+
+    for p in doc.paragraphs:
+        text = p.text.strip()
+        # 設問タイトルにマッチしたら、新しい設問の開始
+        if title_question.match(text):
+            # すでに収集した設問があれば処理（次の設問の開始前に保存）
+            if question_text:
+                question_main_score_list.append(llm.extract_main_score_from_text(question_text))
+
+            # 新しい設問の収集を開始
+            found = True
+            question_text = text  # 設問のタイトル部分をセット
+            continue
+
+        # 空行（改行のみ）の場合、設問収集を終了
+        if text == "":
+            found = False
+            continue
+
+        # 設問の収集中なら続けて追加
+        if found:
+            question_text += "\n" + text
+
+    # 最後の設問を処理
+    if question_text:
+        question_main_score_list.append(llm.extract_main_score_from_text(question_text))
+
+    return question_main_score_list
 title_question = re.compile(r'^[一二三四五六七八九十百千]+　[^\s　]+(?:　[^\s　]+)*')
 def extract_main_text(doc: Document) -> list[list[Document]]:
     """大問から、問の前までの全テキストを抽出します。"""

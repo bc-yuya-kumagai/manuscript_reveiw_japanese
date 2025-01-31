@@ -1,4 +1,5 @@
-from src.doc_util import get_style_by_id, extract_annotation_text_to_list, extract_main_text_and_annotation_to_main_text
+from src.doc_util import get_style_by_id, kanji_number_to_arabic_number, extract_question_number, extract_annotation_text_to_list, extract_main_text_and_annotation_to_main_text
+from unittest.mock import MagicMock
 from unittest.mock import MagicMock
 from docx.text.paragraph import Paragraph
 
@@ -39,6 +40,44 @@ def test_get_style_by_id():
 
 
 
+
+# 漢数字をアラビア数字に変換する関数のテスト
+def test_kanji_number_to_arabic_number():
+    test_cases = [
+        # 単一の漢数字
+        ("〇", "0"),
+        ("一", "1"),
+        ("二", "2"),
+        ("三", "3"),
+        ("四", "4"),
+        ("五", "5"),
+        ("六", "6"),
+        ("七", "7"),
+        ("八", "8"),
+        ("九", "9"),
+
+        # 連続した漢数字
+        ("一二三", "123"),
+        ("四五六", "456"),
+        ("七八九", "789"),
+        ("九〇", "90"),
+
+        # 大きな数字
+        ("二〇二四", "2024"),  # 西暦表記
+        ("五六七八九〇一", "5678901"),
+
+        # 漢数字以外の文字を含むケース
+        ("漢字一二三", "123"),  # 文字混じり
+        ("テスト五六", "56"),
+        ("123四五六", "456"),  # すでに数字が入っている場合
+
+        # 漢数字がない場合
+        ("漢字だけ", ""),
+        ("", ""),  # 空文字
+    ]
+
+    for kanji_input, expected in test_cases:
+        assert kanji_number_to_arabic_number(kanji_input) == expected, f"Failed for input: {kanji_input}"
 def test_extract_annotation_text_to_list():
     """傍注のリストが正しく抽出されることを確認"""
 

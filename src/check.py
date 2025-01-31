@@ -5,12 +5,14 @@ import src.doc_util
 from typing import List
 import src.doc_util
 import src.llm_util
+from docx import Document
 from docx.text.paragraph import Paragraph
 import json
 from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# 大問の点数を取得する正規表現
 
 
 
@@ -367,6 +369,40 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                     return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
 
+def check_part_question_score(question_doc:Document, answer_doc:Document):
+    
+    main_score_list = src.doc_util.extract_question_number(question_doc)
+    answer_score_list = src.doc_util.extract_question_number(answer_doc)
+
+    question_dict = {q["question_title"]: q["question_score"] for q in main_score_list}
+    answer_dict = {a["question_title"]: a["question_score"] for a in answer_score_list}
+    
+    # 問題にあるのに解答にないもの
+    missing_in_answer = [q for q in question_dict if q not in answer_dict]
+    
+    # 解答にあるのに問題にないもの
+    extra_in_answer = [a for a in answer_dict if a not in question_dict]
+    
+    # 点数不一致のリスト
+    score_mismatch = {
+        q: (question_dict[q], answer_dict[q])
+        for q in question_dict if q in answer_dict and question_dict[q] != answer_dict[q]
+    }
+    
+    error_messages = []
+    if missing_in_answer:
+        error_messages.append(f'問題にあるが解答にない: {missing_in_answer}')
+    if extra_in_answer:
+        error_messages.append(f'解答にあるが問題にない: {extra_in_answer}')
+    if score_mismatch:
+        error_messages.append(f'点数不一致: {score_mismatch}')
+    
+    if error_messages:
+        return InvalidItem(type="大問の配点検証エラー", message="; ".join(error_messages))
+def check_question_sentence_word_count(question_texts, answer_texts):
+    """問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック"""
+    question_list = []
+    answer_list = []
 # 本文から傍注のテキストを抜き出す正規表現をコンパイル
 annotation_extend_main_text_pattern = re.compile(r"（注[^）]*）.*?。")
 def check_exists_annotation(doc: Document):
