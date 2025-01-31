@@ -107,6 +107,10 @@ def analyze_docx(docx_file_path: str):
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
 
+    #傍注の説明の内容が本文に入っているかチェック
+    check_exists_annotation_result = ck.check_exists_annotation(doc)
+    if isinstance(check_exists_annotation_result, InvalidItem):
+        invalid_list.append(check_exists_annotation_result)
     # 記述設問の際、解説のポイントが存在しているかチェック
     check_answer_point = ck.check_answer_contains_points(doc)
     if isinstance(check_answer_point, InvalidItem):
@@ -159,36 +163,6 @@ def analyze_qa_docx_check( question_file_path: str, answer_file_path: str ):
     return result     
 
 
-def analyze_qa_docx_check( question_file_path: str, answer_file_path: str ):
-    """
-    問題と解説同士を比較するための関数
-    """
-    question_doc = Document(question_file_path)
-    answer_doc = Document(answer_file_path)
-
-    # 問のテキストを設問ごとにリストでの取得
-    question_texts = doc_util.get_questions(question_doc)
-    answer_texts = doc_util.get_questions(answer_doc)
-
-    invalid_list = []
-
-    # 問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック
-    check_question_and_answer_word_count=ck.check_question_sentence_word_count(question_texts, answer_texts)
-    if isinstance(check_question_and_answer_word_count, InvalidItem):
-        invalid_list.append(check_question_and_answer_word_count)
-
-    # 結果整形
-    result = {"errors":[]}
-    if invalid_list:
-        for i in invalid_list:
-            if isinstance(i, InvalidItem):
-                result["errors"].append({"type": i.type, "message": i.message})
-
-    else:
-        result["message"] = "問題なし"
-    return result 
-
-
 @app.get("/", response_class=HTMLResponse)
 async def home_page():
     # 簡易的なアップロードフォーム
@@ -199,14 +173,6 @@ async def home_page():
             <h1>Wordファイルアップロード</h1>
             <form action="/upload" enctype="multipart/form-data" method="post">
             <input name="docx_file" type="file" accept=".docx">
-            <input type="submit" value="アップロードしてチェック">
-            </form>
-            <h1>問題と解説のアップロード</h1>
-            <form action="/upload_with_answers" enctype="multipart/form-data" method="post">
-            <label for="question_file">問題ファイル:</label>
-            <input name="question_file" type="file" accept=".docx"><br>
-            <label for="answer_file">解説ファイル:</label>
-            <input name="answer_file" type="file" accept=".docx"><br>
             <input type="submit" value="アップロードしてチェック">
             </form>
         </body>
@@ -241,27 +207,4 @@ async def upload_and_check(docx_file: UploadFile = File(...)):
         # 一時ファイル削除
         delete_temp_file(temp_file_path)
 
-    return result
-
-@app.post("/upload_with_answers")
-async def upload_with_answers(
-    question_file: UploadFile = File(...),
-    answer_file: UploadFile = File(...),
-):
-    """問題と解説両方をチェックする必要がある場合のエンドポイント"""
-    # ファイルタイプのチェック
-    for file in [question_file, answer_file]:
-        if file.content_type not in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"{file.filename}はdocxファイルではありません")
-
-    # 一時ファイルの保存
-    question_file_path = await save_temp_file(question_file)
-    answer_file_path = await save_temp_file(answer_file)
-    try:
-        # 分析実行
-        result = analyze_qa_docx_check(question_file_path, answer_file_path)
-    finally:
-        # 一時ファイル削除
-        delete_temp_file(question_file_path)
-        delete_temp_file(answer_file_path)
     return result
