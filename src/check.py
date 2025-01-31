@@ -12,6 +12,8 @@ from docx import Document
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+
 class SideLine:
     def __init__(self, index_text:str, passage:str):
         """ 傍線部のテキストとそのテキストとその添え字を保持するクラス
@@ -365,83 +367,54 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                     return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
 
-def check_question_sentence_word_count(question_texts, answer_texts):
-    """問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック"""
-    question_list = []
-    answer_list = []
+# 本文から傍注のテキストを抜き出す正規表現をコンパイル
+annotation_extend_main_text_pattern = re.compile(r"（注[^）]*）.*?。")
+def check_exists_annotation(doc: Document):
+    """
+    傍注が本文内にすべて含まれているか検査する関数。
 
-    # 質問部分のテキストを抽出
-    for paragraphs in question_texts:
-        question_text = ""
-        for paragraph in paragraphs:
-            question_text += paragraph.text
-        if question_text:
-            question_list.append(src.llm_util.extract_question_sentence_word_count(question_text))
-    
-    # 解説部分のテキストを抽出
-    answer_record_flg = False
-    for paragraphs in answer_texts:
-        answer_text = ""
-        for paragraph in paragraphs:
-            if paragraph.text == "●本文解説":
-                answer_record_flg = True
-                break
-            if answer_record_flg is False:
-                answer_text += paragraph.text
-        if answer_text:
-            answer_list.append(src.llm_util.extract_question_sentence_word_count(answer_text))
+    Parameters:
+        doc (Document): チェック対象のドキュメントオブジェクト。
 
-    # 評価
-    # 結果を格納するリスト
-    mismatched_word_count = []
-    
-    # `is_target_evaluation` が True の項目をフィルタリング
-    target_questions = [q for q in question_list if q['is_target_evaluation']]
-    target_answers = [a for a in answer_list if a['is_target_evaluation']]
-    
-    # 質問番号をキーにした辞書を作成（高速なアクセスのため）
-    question_dict = {q['question_no']: q for q in target_questions}
-    answer_dict = {a['question_no']: a for a in target_answers}
-    
-    # 質問リストをループして得点の一致を確認
-    for question in target_questions:
-        question_no = question['question_no']
-        question_word_count = question['word_count'] 
+    Returns:
+        InvalidItem: 傍注が本文内に含まれていない場合のエラー情報。
+        None: 全ての傍注が本文内に正しく含まれている場合。
+    """
+    # 本文と傍注を抽出
+    main_texts_and_annotation_texts = src.doc_util.extract_main_text(doc)
+
+    # # 本文中から傍注の文章を抽出
+    annotation_sentences = []
+    missing_annotations = []  # 本文内に存在しない傍注のリスト
+    found_count = 0  # 本文内に存在する傍注の数
+    for main_text_and_annotation in main_texts_and_annotation_texts:
+        # 本文と傍注から傍注のみを抽出
+        annotation_list = src.doc_util.extract_annotation_text_to_list(main_text_and_annotation)
+        # 本文と傍注から本文のみを抽出
+        main_text_list = src.doc_util.extract_main_text_and_annotation_to_main_text(main_text_and_annotation)
         
-        # 解説内にこの設問の文字数について言及されているか確認
-        answer = answer_dict.get(question_no)
-        if not answer:
-            mismatched_word_count.append({
-                'question_no': question_no,
-                'reason': '解説内にこの設問の文字数について言及されていません。'
-            })
-            continue
-        
-        answer_score = answer['word_count']
-        
-        # 文字数が一致しているか確認
-        if question_word_count != answer_score:
-            mismatched_word_count.append({
-                'question_no': question_no,
-                'reason': '文字数が一致していません。'
-            })
-    
-    # 解説リストをループして、解説にのみ言及されている文字数がないか確認
-    for answer in target_answers:
-        answer_no = answer['question_no']
-        if answer_no not in question_dict:
-            mismatched_word_count.append({
-                'question_no': answer_no,
-                'reason': '解説文にのみ文字数が言及されています。'
-            })
-            
-    # 結果を返す
-    if len(mismatched_word_count) > 0:
-        problem_message= ""
-        for mismatch in mismatched_word_count:
-            problem_message += f'問題番号：{mismatch["question_no"]}、理由：{mismatch["reason"]}\n'
-            
-        return InvalidItem(type="指定文字数不一致", message=f'問題と解説で指定されている文字数に一致していないものがあります。[{problem_message}]')
+        # 本文中から傍注の文章を抽出
+        annotation_sentences = [] # 本文から傍注部分を抽出し格納するリスト
+        for paragraph in main_text_list:
+            matches = annotation_extend_main_text_pattern.findall(paragraph.text)
+            if matches:
+                annotation_sentences.extend(matches)
+
+        # 傍注リストの各項目が本文内に存在するかチェック
+        for annotation_name in annotation_list:
+            occurrence_count = sum(annotation_name in sentence for sentence in annotation_sentences)
+            # 傍注が本文内に存在しない場合
+            if occurrence_count == 0:
+                missing_annotations.append(annotation_name)
+            else:
+                found_count += occurrence_count
+
+    # OKの数と本文内の傍注数が一致しているか確認
+    if found_count != len(annotation_sentences) and missing_annotations:
+        missing_annotation_names = ",".join(missing_annotations)
+        return InvalidItem(type="傍注箇所エラー", message=f"傍注部分の「{missing_annotation_names}」が、本文の注に含まれていません。")
+    elif found_count != len(annotation_sentences):
+        return InvalidItem(type="傍注箇所エラー", message="本文の傍注部分で、注の説明に含まれていないものがあります。")
 def check_answer_contains_points(doc:list):
     """記述設問の場合に、解説のポイントが含まれているかチェックする"""
     question_explanation_list = src.doc_util.get_explanation_of_questions(doc)

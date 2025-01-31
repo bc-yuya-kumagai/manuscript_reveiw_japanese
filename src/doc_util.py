@@ -7,6 +7,7 @@ from lxml import etree
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 
+import re
 
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
@@ -386,6 +387,69 @@ def find_theme_font_schemas(word_file_path):
         'minorFont': minor_font
     }
 
+title_question = re.compile(r'^[一二三四五六七八九十百千]+　[^\s　]+(?:　[^\s　]+)*')
+def extract_main_text(doc: Document) -> list[list[Document]]:
+    """大問から、問の前までの全テキストを抽出します。"""
+    all_texts = []
+    current_text = []
+    start_collecting = False
+
+    for p in doc.paragraphs:
+        if title_question.match(p.text):
+            if current_text:  # 既に収集中の本文があるなら保存
+                all_texts.append(current_text)
+                current_text = []  # 次の本文のためにリセット
+            start_collecting = True  # 新しい本文の収集開始
+
+        if start_collecting:
+            if p.text.startswith("問"):
+                if current_text:  # 最後の収集データを保存
+                    all_texts.append(current_text)
+                start_collecting = False  # 収集終了
+                current_text = []
+                continue
+            
+            current_text.append(p)
+
+    # 最後の本文があれば追加
+    if current_text:
+        all_texts.append(current_text)
+
+    return all_texts
+
+annotation_pattern = re.compile(r"^[０-９]+　+[^\s　]+(?:[-―－…・]+[^\s　]+)*(?:　+|[-―－…・])+.+")
+def extract_annotation_text_to_list(annotation_paragraph: Document) -> list[str]:
+    """本文のパラグラフから傍注のリストを作成して返す関数"""
+    annotation_names = []
+    is_collecting_annotations = False
+
+    for line in annotation_paragraph:
+        if line.text.startswith("（注）"):  # 「（注）」が始まったら収集を開始
+            is_collecting_annotations = True  # 傍注の収集開始
+        if is_collecting_annotations:
+            for line in line.text.split("\n"):
+                
+                line = line.lstrip()
+                if line.startswith("（注）"):
+                    line = line[3:]  # 「（注）」を削除
+                parts = line.split("――")  # 全角スペースで分割
+                if len(parts) > 1:  # 2つ以上の要素があるか確認
+                    annotation_names.append(parts[0].split("　")[1])  # 2つ目の要素を取得
+                else:
+                    is_collecting_annotations = False  # フォーマット違いの行が出たら収集停止
+                    break  # ループを抜ける
+
+    return annotation_names
+
+def extract_main_text_and_annotation_to_main_text(documents_list: Document) -> list[Document]:
+    """大問から、問の前までの全テキストを抽出しますから問題本文を抜き出します。"""
+    main_text_list = []
+    for p in documents_list:
+        if p.text.startswith("（注）"):
+            break
+        main_text_list.append(p)
+            
+    return main_text_list
 def get_explanation_of_questions(doc: Document) -> List[str]:
     """
     解説ドキュメントから設問の解説を抽出する。ただし、「解答・配点」に到達した時点で抽出を終了する。
