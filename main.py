@@ -107,6 +107,11 @@ def analyze_docx(docx_file_path: str):
     if isinstance(check_heading_question_font_item, InvalidItem):
         invalid_list.append(check_heading_question_font_item)
 
+    # 記述設問の際、解説のポイントが存在しているかチェック
+    check_answer_point = ck.check_answer_contains_points(doc)
+    if isinstance(check_answer_point, InvalidItem):
+        invalid_list.append(check_answer_point)
+
     # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
     check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
     if isinstance(check_writing_kanji_phrase_error, InvalidItem):
@@ -152,6 +157,36 @@ def analyze_qa_docx_check( question_file_path: str, answer_file_path: str ):
     else:
         result["message"] = "問題なし"
     return result     
+
+
+def analyze_qa_docx_check( question_file_path: str, answer_file_path: str ):
+    """
+    問題と解説同士を比較するための関数
+    """
+    question_doc = Document(question_file_path)
+    answer_doc = Document(answer_file_path)
+
+    # 問のテキストを設問ごとにリストでの取得
+    question_texts = doc_util.get_questions(question_doc)
+    answer_texts = doc_util.get_questions(answer_doc)
+
+    invalid_list = []
+
+    # 問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック
+    check_question_and_answer_word_count=ck.check_question_sentence_word_count(question_texts, answer_texts)
+    if isinstance(check_question_and_answer_word_count, InvalidItem):
+        invalid_list.append(check_question_and_answer_word_count)
+
+    # 結果整形
+    result = {"errors":[]}
+    if invalid_list:
+        for i in invalid_list:
+            if isinstance(i, InvalidItem):
+                result["errors"].append({"type": i.type, "message": i.message})
+
+    else:
+        result["message"] = "問題なし"
+    return result 
 
 
 @app.get("/", response_class=HTMLResponse)
