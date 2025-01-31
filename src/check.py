@@ -3,6 +3,7 @@ import logging
 import re
 import src.doc_util
 from typing import List
+import src.doc_util
 import src.llm_util
 from docx.text.paragraph import Paragraph
 import json
@@ -441,6 +442,23 @@ def check_question_sentence_word_count(question_texts, answer_texts):
             problem_message += f'問題番号：{mismatch["question_no"]}、理由：{mismatch["reason"]}\n'
             
         return InvalidItem(type="指定文字数不一致", message=f'問題と解説で指定されている文字数に一致していないものがあります。[{problem_message}]')
+def check_answer_contains_points(doc:list):
+    """記述設問の場合に、解説のポイントが含まれているかチェックする"""
+    question_explanation_list = src.doc_util.get_explanation_of_questions(doc)
+            
+    for question in question_explanation_list:
+        
+        if "記述設問" in question:
+            if "解答のポイント" not in question:
+                # 文字を丸める
+                error_question = ""
+                if len(question) > 15:
+                    error_question = question[:15] + "…"
+                else:
+                    error_question = question
+                # Exceptionを発火
+                return InvalidItem(type="フレーズ不足", message=f"{error_question}に、記述設問の場合解説のポイントが含まれていません。")
+
 def check_phrase_in_kanji_writing_question(question_texts: Document):
     """
     設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします。
