@@ -86,7 +86,6 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         if isinstance(result_sl_mapping, InvalidItem):
             invalid_list["problem"].append(result_sl_mapping)
 
-
         # 選択肢のチェック
         for question in question_texts:
             question_text = "\n".join([q.text for q in question])
@@ -144,6 +143,17 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
         for error in check_kanji_number_orders:
             invalid_list["problem"].append(error)
+            
+        #傍注の説明の内容が本文に入っているかチェック
+        check_exists_annotation_result = ck.check_exists_annotation(problem_doc)
+        if isinstance(check_exists_annotation_result, InvalidItem):
+            invalid_list["problem"].append(check_exists_annotation_result)
+
+        # 設問番号が順番通りになっているかチェック
+        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
+        check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
+        for error in check_kanji_number_orders:
+            invalid_list["problem"].append(error)
 
     # 解説のみのチェック
     if solution_doc:
@@ -157,6 +167,24 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
         if isinstance(check_explanation_of_questions_error, InvalidItem):
             invalid_list["solution"].append(check_explanation_of_questions_error)
+        
+        # 記述設問の際、解説のポイントが存在しているかチェック
+        check_answer_point = ck.check_answer_contains_points(solution_doc)
+        if isinstance(check_answer_point, InvalidItem):
+            invalid_list["solution"].append(check_answer_point)
+            
+        # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
+        check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
+        if isinstance(check_writing_kanji_phrase_error, InvalidItem):
+            invalid_list["solution"].append(check_writing_kanji_phrase_error)
+
+    # 問題と解説両方をチェック
+    if problem_doc and solution_doc:
+        # 大問の配点をチェックする。
+        part_question_score_check = ck.check_part_question_score(problem_doc, solution_doc)
+        if isinstance(part_question_score_check, InvalidItem):
+            invalid_list["solution"].append(part_question_score_check)
+
 
     # 結果整形
     for category in ["problem", "solution", "common"]:
@@ -169,6 +197,7 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
     }
 
     return result
+ 
 
 
 @app.get("/", response_class=HTMLResponse)
