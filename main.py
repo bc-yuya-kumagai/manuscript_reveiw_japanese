@@ -155,6 +155,11 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         for error in check_kanji_number_orders:
             invalid_list["problem"].append(error)
 
+        # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
+        check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
+        if isinstance(check_kanji_reading_missing_result, InvalidItem):
+            invalid_list["problem"].append(check_kanji_reading_missing_result)
+
     # 解説のみのチェック
     if solution_doc:
 
@@ -185,7 +190,6 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         if isinstance(part_question_score_check, InvalidItem):
             invalid_list["solution"].append(part_question_score_check)
 
-
     # 結果整形
     for category in ["problem", "solution", "common"]:
         invalid_list[category] = [error for error in invalid_list[category] if error is not None]
@@ -197,7 +201,6 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
     }
 
     return result
- 
 
 
 @app.get("/", response_class=HTMLResponse)

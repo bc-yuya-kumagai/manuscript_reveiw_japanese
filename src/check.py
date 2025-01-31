@@ -539,3 +539,21 @@ def check_phrase_in_kanji_question(paragraphs:List[Paragraph]):
         if "カタカナを漢字に" in paragraph.text:
             if "楷書ではっきり大きく書くこと。" not in paragraph.text:
                 return InvalidItem(type="フレーズ不足", message="漢字書き取り問題の、「楷書ではっきり大きく書くこと。」が不足しています。")
+
+def check_kanji_reading_missing_expressions(question_texts: Document):
+    error_text = ""
+    for paragraphs in question_texts:
+        question_text = ""
+        for paragraph in paragraphs:
+            question_text += str(paragraph.text) + "\n"
+        result = src.llm_util.check_modern_kana_usage(question_text)
+        if result["is_target_evaluation"] is True and result["is_modern_kana_usage_specified"] is False:
+            error_text_one_line = question_text.splitlines()[0]
+            
+            # 15文字以上だと丸める
+            if len(error_text_one_line) > 15:
+                error_text_one_line = error_text_one_line[:15 - 3] + "..."
+            
+            error_text += f"「{error_text_one_line}」付近で、「（現代仮名遣いでよい。）」というフレーズが不足しています。\n"
+
+    return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
