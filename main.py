@@ -56,6 +56,9 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         for run in passage_side_line_runs:
             passage_sideLine_list.append( SideLine(index_text=doc_util.get_previous_text_index_run(run).text, passage=run.text))
 
+        # 文書から「問」で始まるパラグラフを抽出する
+        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
+
         # ページ区切り箇所にゴミが残るのでそれを削除
         passage_sideLine_list = doc_util.clean_sileline_list_in_page_break(passage_sideLine_list)
 
@@ -112,21 +115,14 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
             invalid_list["problem"].append(check_keyword_exact_match_in_question_statement)
 
         # 「問~」がMSゴシックかチェック
-        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
         check_heading_question_font_item = ck.check_heading_question_font(temp_problem_file_path, extract_paragraphs)
         if isinstance(check_heading_question_font_item, InvalidItem):
             invalid_list["problem"].append(check_heading_question_font_item)
 
         # 設問番号が順番通りになっているかチェック
-        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
         check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
         for error in check_kanji_number_orders:
             invalid_list["problem"].append(error)
-
-        # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
-        check_phrase = ck.check_phrase_in_kanji_question(extract_paragraphs)
-        if isinstance(check_phrase, InvalidItem):
-            invalid_list["problem"].append(check_phrase)
 
         #傍注の説明の内容が本文に入っているかチェック
         check_exists_annotation_result = ck.check_exists_annotation(problem_doc)
@@ -138,23 +134,6 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         if isinstance(check_writing_kanji_phrase_error, InvalidItem):
             invalid_list["problem"].append(check_writing_kanji_phrase_error)
 
-        # 設問番号が順番通りになっているかチェック
-        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
-        check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
-        for error in check_kanji_number_orders:
-            invalid_list["problem"].append(error)
-            
-        #傍注の説明の内容が本文に入っているかチェック
-        check_exists_annotation_result = ck.check_exists_annotation(problem_doc)
-        if isinstance(check_exists_annotation_result, InvalidItem):
-            invalid_list["problem"].append(check_exists_annotation_result)
-
-        # 設問番号が順番通りになっているかチェック
-        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
-        check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
-        for error in check_kanji_number_orders:
-            invalid_list["problem"].append(error)
-
         # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
         check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
         if isinstance(check_kanji_reading_missing_result, InvalidItem):
@@ -162,12 +141,6 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
 
     # 解説のみのチェック
     if solution_doc:
-
-        # 解説文に「正解」が含まれるかチェックし、含まれていたらエラーを返す
-        check_word_in_explanatory = ck.check_explanation_of_questions_include_word(solution_doc)
-        if isinstance(check_word_in_explanatory, InvalidItem):
-            invalid_list["solution"].append(check_word_in_explanatory)
-
         # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
         check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
         if isinstance(check_explanation_of_questions_error, InvalidItem):
@@ -177,18 +150,22 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
         check_answer_point = ck.check_answer_contains_points(solution_doc)
         if isinstance(check_answer_point, InvalidItem):
             invalid_list["solution"].append(check_answer_point)
-            
-        # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
-        check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
-        if isinstance(check_writing_kanji_phrase_error, InvalidItem):
-            invalid_list["solution"].append(check_writing_kanji_phrase_error)
 
     # 問題と解説両方をチェック
     if problem_doc and solution_doc:
+        # 問のテキストを設問ごとにリストでの取得
+        problem_texts = doc_util.get_questions(problem_doc)
+        solution_texts = doc_util.get_questions(solution_doc)
+
         # 大問の配点をチェックする。
         part_question_score_check = ck.check_part_question_score(problem_doc, solution_doc)
         if isinstance(part_question_score_check, InvalidItem):
-            invalid_list["solution"].append(part_question_score_check)
+            invalid_list["common"].append(part_question_score_check)
+
+        # 問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック
+        check_question_and_answer_word_count=ck.check_question_sentence_word_count(problem_texts, solution_texts)
+        if isinstance(check_question_and_answer_word_count, InvalidItem):
+            invalid_list["common"].append(check_question_and_answer_word_count)
 
     # 結果整形
     for category in ["problem", "solution", "common"]:

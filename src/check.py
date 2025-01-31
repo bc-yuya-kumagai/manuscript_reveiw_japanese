@@ -403,6 +403,7 @@ def check_exists_annotation(doc: Document):
         return InvalidItem(type="傍注箇所エラー", message=f"傍注部分の「{missing_annotation_names}」が、本文の注に含まれていません。")
     elif found_count != len(annotation_sentences):
         return InvalidItem(type="傍注箇所エラー", message="本文の傍注部分で、注の説明に含まれていないものがあります。")
+
 def check_answer_contains_points(doc:list):
     """記述設問の場合に、解説のポイントが含まれているかチェックする"""
     question_explanation_list = src.doc_util.get_explanation_of_questions(doc)
@@ -533,13 +534,6 @@ def check_kanji_question_index_order(paragraphs: List[object]) -> None:
 
     return errors
 
-def check_phrase_in_kanji_question(paragraphs:List[Paragraph]):
-    """設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします"""
-    for paragraph in paragraphs:
-        if "カタカナを漢字に" in paragraph.text:
-            if "楷書ではっきり大きく書くこと。" not in paragraph.text:
-                return InvalidItem(type="フレーズ不足", message="漢字書き取り問題の、「楷書ではっきり大きく書くこと。」が不足しています。")
-
 def check_kanji_reading_missing_expressions(question_texts: Document):
     error_text = ""
     for paragraphs in question_texts:
@@ -557,3 +551,81 @@ def check_kanji_reading_missing_expressions(question_texts: Document):
             error_text += f"「{error_text_one_line}」付近で、「（現代仮名遣いでよい。）」というフレーズが不足しています。\n"
 
     return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+
+def check_question_sentence_word_count(question_texts, answer_texts):
+    """問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック"""
+    question_list = []
+    answer_list = []
+
+    # 質問部分のテキストを抽出
+    for paragraphs in question_texts:
+        question_text = ""
+        for paragraph in paragraphs:
+            question_text += paragraph.text
+        if question_text:
+            question_list.append(src.llm_util.extract_question_sentence_word_count(question_text))
+    
+    # 解説部分のテキストを抽出
+    answer_record_flg = False
+    for paragraphs in answer_texts:
+        answer_text = ""
+        for paragraph in paragraphs:
+            if paragraph.text == "●本文解説":
+                answer_record_flg = True
+                break
+            if answer_record_flg is False:
+                answer_text += paragraph.text
+        if answer_text:
+            answer_list.append(src.llm_util.extract_question_sentence_word_count(answer_text))
+
+    # 評価
+    # 結果を格納するリスト
+    mismatched_word_count = []
+    
+    # `is_target_evaluation` が True の項目をフィルタリング
+    target_questions = [q for q in question_list if q['is_target_evaluation']]
+    target_answers = [a for a in answer_list if a['is_target_evaluation']]
+    
+    # 質問番号をキーにした辞書を作成（高速なアクセスのため）
+    question_dict = {q['question_no']: q for q in target_questions}
+    answer_dict = {a['question_no']: a for a in target_answers}
+    
+    # 質問リストをループして得点の一致を確認
+    for question in target_questions:
+        question_no = question['question_no']
+        question_word_count = question['word_count'] 
+        
+        # 解説内にこの設問の文字数について言及されているか確認
+        answer = answer_dict.get(question_no)
+        if not answer:
+            mismatched_word_count.append({
+                'question_no': question_no,
+                'reason': '解説内にこの設問の文字数について言及されていません。'
+            })
+            continue
+        
+        answer_score = answer['word_count']
+        
+        # 文字数が一致しているか確認
+        if question_word_count != answer_score:
+            mismatched_word_count.append({
+                'question_no': question_no,
+                'reason': '文字数が一致していません。'
+            })
+    
+    # 解説リストをループして、解説にのみ言及されている文字数がないか確認
+    for answer in target_answers:
+        answer_no = answer['question_no']
+        if answer_no not in question_dict:
+            mismatched_word_count.append({
+                'question_no': answer_no,
+                'reason': '解説文にのみ文字数が言及されています。'
+            })
+            
+    # 結果を返す
+    if len(mismatched_word_count) > 0:
+        problem_message= ""
+        for mismatch in mismatched_word_count:
+            problem_message += f'問題番号：{mismatch["question_no"]}、理由：{mismatch["reason"]}\n'
+            
+        return InvalidItem(type="指定文字数不一致", message=f'問題と解説で指定されている文字数に一致していないものがあります。[{problem_message}]')

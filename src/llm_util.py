@@ -692,4 +692,68 @@ def extract_main_score_from_text(question_main_text: str) -> dict:
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
+
+def extract_question_sentence_word_count(content: str) -> dict:
+    """問題文から文字数が指定されているかチェックし、指定されていれば指定された文字数を返す"""
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から文字数指定がある問題を抽出するボットです。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の問題章から文字数指定があるかどうか判定します。\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "WordCountResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_target_evaluation": {
+                    "type": "boolean",
+                    "description": "文字数指定があれば true とし、なければ false とします。"
+                },
+                "question_no": {
+                    "type": "string",
+                    "description": "問の識別子。例: 問1, 問2"
+                },
+                "word_count": {
+                    "type": "integer",
+                    "description": "指定されている文字数"
+                },
+            },
+            "required": ["is_target_evaluation", "question_no", "word_count"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
         raise e
