@@ -3,6 +3,7 @@ import logging
 import re
 import src.doc_util
 from typing import List
+import src.doc_util
 import src.llm_util
 from docx.text.paragraph import Paragraph
 import json
@@ -10,6 +11,8 @@ from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -363,6 +366,71 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+# 本文から傍注のテキストを抜き出す正規表現をコンパイル
+annotation_extend_main_text_pattern = re.compile(r"（注[^）]*）.*?。")
+def check_exists_annotation(doc: Document):
+    """
+    傍注が本文内にすべて含まれているか検査する関数。
+
+    Parameters:
+        doc (Document): チェック対象のドキュメントオブジェクト。
+
+    Returns:
+        InvalidItem: 傍注が本文内に含まれていない場合のエラー情報。
+        None: 全ての傍注が本文内に正しく含まれている場合。
+    """
+    # 本文と傍注を抽出
+    main_texts_and_annotation_texts = src.doc_util.extract_main_text(doc)
+
+    # # 本文中から傍注の文章を抽出
+    annotation_sentences = []
+    missing_annotations = []  # 本文内に存在しない傍注のリスト
+    found_count = 0  # 本文内に存在する傍注の数
+    for main_text_and_annotation in main_texts_and_annotation_texts:
+        # 本文と傍注から傍注のみを抽出
+        annotation_list = src.doc_util.extract_annotation_text_to_list(main_text_and_annotation)
+        # 本文と傍注から本文のみを抽出
+        main_text_list = src.doc_util.extract_main_text_and_annotation_to_main_text(main_text_and_annotation)
+        
+        # 本文中から傍注の文章を抽出
+        annotation_sentences = [] # 本文から傍注部分を抽出し格納するリスト
+        for paragraph in main_text_list:
+            matches = annotation_extend_main_text_pattern.findall(paragraph.text)
+            if matches:
+                annotation_sentences.extend(matches)
+
+        # 傍注リストの各項目が本文内に存在するかチェック
+        for annotation_name in annotation_list:
+            occurrence_count = sum(annotation_name in sentence for sentence in annotation_sentences)
+            # 傍注が本文内に存在しない場合
+            if occurrence_count == 0:
+                missing_annotations.append(annotation_name)
+            else:
+                found_count += occurrence_count
+
+    # OKの数と本文内の傍注数が一致しているか確認
+    if found_count != len(annotation_sentences) and missing_annotations:
+        missing_annotation_names = ",".join(missing_annotations)
+        return InvalidItem(type="傍注箇所エラー", message=f"傍注部分の「{missing_annotation_names}」が、本文の注に含まれていません。")
+    elif found_count != len(annotation_sentences):
+        return InvalidItem(type="傍注箇所エラー", message="本文の傍注部分で、注の説明に含まれていないものがあります。")
+def check_answer_contains_points(doc:list):
+    """記述設問の場合に、解説のポイントが含まれているかチェックする"""
+    question_explanation_list = src.doc_util.get_explanation_of_questions(doc)
+            
+    for question in question_explanation_list:
+        
+        if "記述設問" in question:
+            if "解答のポイント" not in question:
+                # 文字を丸める
+                error_question = ""
+                if len(question) > 15:
+                    error_question = question[:15] + "…"
+                else:
+                    error_question = question
+                # Exceptionを発火
+                return InvalidItem(type="フレーズ不足", message=f"{error_question}に、記述設問の場合解説のポイントが含まれていません。")
 
 def check_phrase_in_kanji_writing_question(question_texts: Document):
     """
