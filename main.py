@@ -111,6 +111,10 @@ def analyze_docx(docx_file_path: str):
     check_exists_annotation_result = ck.check_exists_annotation(doc)
     if isinstance(check_exists_annotation_result, InvalidItem):
         invalid_list.append(check_exists_annotation_result)
+    # 記述設問の際、解説のポイントが存在しているかチェック
+    check_answer_point = ck.check_answer_contains_points(doc)
+    if isinstance(check_answer_point, InvalidItem):
+        invalid_list.append(check_answer_point)
 
     # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
     check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)

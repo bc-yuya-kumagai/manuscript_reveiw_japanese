@@ -415,6 +415,23 @@ def check_exists_annotation(doc: Document):
         return InvalidItem(type="傍注箇所エラー", message=f"傍注部分の「{missing_annotation_names}」が、本文の注に含まれていません。")
     elif found_count != len(annotation_sentences):
         return InvalidItem(type="傍注箇所エラー", message="本文の傍注部分で、注の説明に含まれていないものがあります。")
+def check_answer_contains_points(doc:list):
+    """記述設問の場合に、解説のポイントが含まれているかチェックする"""
+    question_explanation_list = src.doc_util.get_explanation_of_questions(doc)
+            
+    for question in question_explanation_list:
+        
+        if "記述設問" in question:
+            if "解答のポイント" not in question:
+                # 文字を丸める
+                error_question = ""
+                if len(question) > 15:
+                    error_question = question[:15] + "…"
+                else:
+                    error_question = question
+                # Exceptionを発火
+                return InvalidItem(type="フレーズ不足", message=f"{error_question}に、記述設問の場合解説のポイントが含まれていません。")
+
 def check_phrase_in_kanji_writing_question(question_texts: Document):
     """
     設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします。

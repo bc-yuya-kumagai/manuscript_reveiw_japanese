@@ -450,6 +450,48 @@ def extract_main_text_and_annotation_to_main_text(documents_list: Document) -> l
         main_text_list.append(p)
             
     return main_text_list
+def get_explanation_of_questions(doc: Document) -> List[str]:
+    """
+    解説ドキュメントから設問の解説を抽出する。ただし、「解答・配点」に到達した時点で抽出を終了する。
+    
+    Args:
+        doc (Document): docxファイルを読み込んだDocumentオブジェクト
+    Returns:
+        List[str]: 各設問の解説を含むリスト
+    """
+    explanation_flg = False  # 「●設問解説」を見つけたかどうか
+    all_questions = []  # すべての設問を格納
+    current_question = []  # 現在処理中の設問を格納
+
+    for p in doc.paragraphs:
+        text = p.text.strip()
+
+        # 「●設問解説」が見つかったらフラグをオン
+        if text.startswith("●設問解説"):
+            explanation_flg = True
+            continue
+
+        # 「解答・配点」が見つかったらフラグをオフ
+        if explanation_flg and "解答・配点" in text:
+            explanation_flg = False
+            continue
+
+        # フラグがオンの場合、設問を処理
+        if explanation_flg:
+            # 新しい「問」で始まる設問が見つかったら保存
+            if text.startswith("問") and current_question:
+                all_questions.append("\n".join(current_question))
+                current_question = []
+
+            # 現在の段落を追加
+            if text:
+                current_question.append(text)
+
+    # 最後の設問を保存
+    if current_question:
+        all_questions.append("\n".join(current_question))
+
+    return all_questions
 
 # 使用例
 if __name__ == "__main__":
