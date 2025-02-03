@@ -6,7 +6,8 @@ from docx.text.paragraph import Paragraph
 from lxml import etree
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
-
+from src.entity import Section
+import src.general_util as gu
 
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
@@ -343,6 +344,51 @@ def find_theme_font_schemas(word_file_path):
         'majorFont': major_font,
         'minorFont': minor_font
     }
+
+def is_start_section(paragraph: Paragraph) -> bool:
+    """
+    大門の開始を判定する関数。
+
+    Args:
+        paragraph (Paragraph): python-docx の Paragraph オブジェクト。
+
+    Returns:
+        bool: 大門の開始であれば True、そうでなければ False。
+    """
+    if len(paragraph.text.strip()) == 0:
+        return False
+    return paragraph.text.strip()[0] in ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+
+def is_end_section(paragraph: Paragraph) -> bool:
+    """
+    大門の終了を判定する関数。
+    大門の終わりには特別なマーカーは存在しないので常にFalse を返す。
+
+    Args:
+        paragraph (Paragraph): python-docx の Paragraph オブジェクト。
+
+    Returns:
+        bool: False 固定。
+    """
+    return paragraph.text.strip() == "END"
+def extract_sections(doc: Document) -> List[Section]:
+    """
+    文書から大門を抽出する関数。
+
+    Args:
+        doc (Document): python-docx の Document オブジェクト。
+
+    Returns:
+        List[Section]: 抽出されたセクションのリスト。
+    """
+    sections = []
+    section_intervals = gu.extract_intervals(doc.paragraphs, is_start=is_start_section, is_end=is_end_section)
+    for interval in section_intervals:
+        section = Section(section_number=interval[0].text[0], body_text="\n".join(p.text for p in interval[1:]))
+        sections.append(section)
+    
+    return sections
+    
 
 # 使用例
 if __name__ == "__main__":
