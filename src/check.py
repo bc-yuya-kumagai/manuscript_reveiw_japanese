@@ -443,18 +443,21 @@ def check_phrase_in_kanji_writing_question(question_texts: Document):
         result = src.llm_util.check_phrase_in_writing_question(question_text)
         
         # 条件を満たす場合、エラーを生成
-        if result["is_target_evaluation"] and not result["is_valid"]:
-            # エラー表示用に設問テキストの先頭行を取得（最大15文字）
-            error_text_one_line = question_text.splitlines()[0][:15]
-            # 15文字を超える場合は末尾を "..." に丸める
-            if len(question_text.splitlines()[0]) > 15:
-                error_text_one_line = error_text_one_line[:12] + "..."
-            
-            # エラーメッセージを追加
-            error_text = f"「{error_text_one_line}」付近で、「（楷書ではっきり大きく書くこと。）」というフレーズが不足しています。\n"
+        if not result["is_target_evaluation"] or result["is_valid"]:
+            return None
+        
+        # エラー表示用に設問テキストの先頭行を取得（最大15文字）
+        error_text_one_line = question_text.splitlines()[0][:15]
+        # 15文字を超える場合は末尾を "..." に丸める
+        if len(question_text.splitlines()[0]) > 15:
+            error_text_one_line = error_text_one_line[:12] + "..."
+        
+        # エラーメッセージを追加
+        error_text = f"「{error_text_one_line}」付近で、「（楷書ではっきり大きく書くこと。）」というフレーズが不足しています。\n"
 
-            # エラー内容を含むオブジェクトを返す
-            return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+        # エラー内容を含むオブジェクトを返す
+        return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+        
 
 def convert_kanji_number_to_int(kanji_number)->int:
     """漢数字を数値に変換する
@@ -544,16 +547,17 @@ def check_kanji_reading_missing_expressions(question_texts: Document):
         for paragraph in paragraphs:
             question_text += str(paragraph.text) + "\n"
         result = src.llm_util.check_modern_kana_usage(question_text)
-        if result["is_target_evaluation"] is True and result["is_modern_kana_usage_specified"] is False:
-            error_text_one_line = question_text.splitlines()[0]
-            
-            # 15文字以上だと丸める
-            if len(error_text_one_line) > 15:
-                error_text_one_line = error_text_one_line[:15 - 3] + "..."
-            
-            error_text += f"「{error_text_one_line}」付近で、「（現代仮名遣いでよい。）」というフレーズが不足しています。\n"
+        if not result["is_target_evaluation"] or result["is_modern_kana_usage_specified"]:
+            return None
 
-    return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+        error_text_one_line = question_text.splitlines()[0]
+        # 15文字以上だと丸める
+        if len(error_text_one_line) > 15:
+            error_text_one_line = error_text_one_line[:15 - 3] + "..."
+        
+        error_text += f"「{error_text_one_line}」付近で、「（現代仮名遣いでよい。）」というフレーズが不足しています。\n"
+
+        return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
 
 def check_question_sentence_word_count(question_texts, answer_texts):
     """問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック"""
