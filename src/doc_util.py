@@ -8,6 +8,8 @@ from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 from src.entity import Section
 import src.general_util as gu
+import src.llm_util as llm
+import re
 
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
@@ -172,6 +174,48 @@ def find_continuous_run_indices(paragraph:Paragraph, target:str):
     return list(set(indices))
 
 
+def get_explanation_of_questions(doc: Document) -> List[str]:
+    """
+    ドキュメントから設問の解説を抽出する。ただし、「解答・配点」に到達した時点で抽出を終了する。
+    
+    Args:
+        doc (Document): docxファイルを読み込んだDocumentオブジェクト
+    Returns:
+        List[str]: 各設問の解説を含むリスト
+    """
+    explanation_flg = False  # 「●設問解説」を見つけたかどうか
+    all_questions = []  # すべての設問を格納
+    current_question = []  # 現在処理中の設問を格納
+
+    for p in doc.paragraphs:
+        text = p.text.strip()
+
+        # 「●設問解説」が見つかったらフラグをオン
+        if text.startswith("●設問解説"):
+            explanation_flg = True
+            continue
+
+        # 「解答・配点」が見つかったらフラグをオフ
+        if explanation_flg and "解答・配点" in text:
+            explanation_flg = False
+            continue
+
+        # フラグがオンの場合、設問を処理
+        if explanation_flg:
+            # 新しい「問」で始まる設問が見つかったら保存
+            if text.startswith("問") and current_question:
+                all_questions.append("\n".join(current_question))
+                current_question = []
+
+            # 現在の段落を追加
+            if text:
+                current_question.append(text)
+
+    # 最後の設問を保存
+    if current_question:
+        all_questions.append("\n".join(current_question))
+
+    return all_questions
 def font_analyzer(docx_file_path: str, paragraph: Paragraph):
     """
     段落内のテキストとフォント情報を解析する関数。
@@ -391,7 +435,163 @@ def extract_sections(doc: Document) -> List[Section]:
     
     return sections
     
+def kanji_number_to_arabic_number(kanji_numr:str):
+    """漢数字をアラビア数字に変換する"""
+    # 漢数字をアラビア数字に変換
+    kanji_to_number = {
+        "〇": 0,
+        "一": 1,
+        "二": 2,
+        "三": 3,
+        "四": 4,
+        "五": 5,
+        "六": 6,
+        "七": 7,
+        "八": 8,
+        "九": 9,
+    }
+    arabic_number = "".join(str(kanji_to_number[char]) for char in kanji_numr if char in kanji_to_number)
+    return arabic_number
 
+title_question = re.compile(r'^(?:【[^】]+】)?[一二三四五六七八九十百千]+　[^\s　]+(?:　[^\s　]+)*')
+def extract_question_number(doc):
+    """設問番号を抽出する"""
+    question_main_score_list = []
+    found = False
+    question_text = ""
+
+    for p in doc.paragraphs:
+        text = p.text.strip()
+        # 設問タイトルにマッチしたら、新しい設問の開始
+        if title_question.match(text):
+            # すでに収集した設問があれば処理（次の設問の開始前に保存）
+            if question_text:
+                question_main_score_list.append(llm.extract_main_score_from_text(question_text))
+
+            # 新しい設問の収集を開始
+            found = True
+            question_text = text  # 設問のタイトル部分をセット
+            continue
+
+        # 空行（改行のみ）の場合、設問収集を終了
+        if text == "":
+            found = False
+            continue
+
+        # 設問の収集中なら続けて追加
+        if found:
+            question_text += "\n" + text
+
+    # 最後の設問を処理
+    if question_text:
+        question_main_score_list.append(llm.extract_main_score_from_text(question_text))
+
+    return question_main_score_list
+title_question = re.compile(r'^[一二三四五六七八九十百千]+　[^\s　]+(?:　[^\s　]+)*')
+def extract_main_text(doc: Document) -> list[list[Document]]:
+    """大問から、問の前までの全テキストを抽出します。"""
+    all_texts = []
+    current_text = []
+    start_collecting = False
+
+    for p in doc.paragraphs:
+        if title_question.match(p.text):
+            if current_text:  # 既に収集中の本文があるなら保存
+                all_texts.append(current_text)
+                current_text = []  # 次の本文のためにリセット
+            start_collecting = True  # 新しい本文の収集開始
+
+        if start_collecting:
+            if p.text.startswith("問"):
+                if current_text:  # 最後の収集データを保存
+                    all_texts.append(current_text)
+                start_collecting = False  # 収集終了
+                current_text = []
+                continue
+            
+            current_text.append(p)
+
+    # 最後の本文があれば追加
+    if current_text:
+        all_texts.append(current_text)
+
+    return all_texts
+
+annotation_pattern = re.compile(r"^[０-９]+　+[^\s　]+(?:[-―－…・]+[^\s　]+)*(?:　+|[-―－…・])+.+")
+def extract_annotation_text_to_list(annotation_paragraph: Document) -> list[str]:
+    """本文のパラグラフから傍注のリストを作成して返す関数"""
+    annotation_names = []
+    is_collecting_annotations = False
+
+    for line in annotation_paragraph:
+        if line.text.startswith("（注）"):  # 「（注）」が始まったら収集を開始
+            is_collecting_annotations = True  # 傍注の収集開始
+        if is_collecting_annotations:
+            for line in line.text.split("\n"):
+                
+                line = line.lstrip()
+                if line.startswith("（注）"):
+                    line = line[3:]  # 「（注）」を削除
+                parts = line.split("――")  # 全角スペースで分割
+                if len(parts) > 1:  # 2つ以上の要素があるか確認
+                    annotation_names.append(parts[0].split("　")[1])  # 2つ目の要素を取得
+                else:
+                    is_collecting_annotations = False  # フォーマット違いの行が出たら収集停止
+                    break  # ループを抜ける
+
+    return annotation_names
+
+def extract_main_text_and_annotation_to_main_text(documents_list: Document) -> list[Document]:
+    """大問から、問の前までの全テキストを抽出しますから問題本文を抜き出します。"""
+    main_text_list = []
+    for p in documents_list:
+        if p.text.startswith("（注）"):
+            break
+        main_text_list.append(p)
+            
+    return main_text_list
+def get_explanation_of_questions(doc: Document) -> List[str]:
+    """
+    解説ドキュメントから設問の解説を抽出する。ただし、「解答・配点」に到達した時点で抽出を終了する。
+    
+    Args:
+        doc (Document): docxファイルを読み込んだDocumentオブジェクト
+    Returns:
+        List[str]: 各設問の解説を含むリスト
+    """
+    explanation_flg = False  # 「●設問解説」を見つけたかどうか
+    all_questions = []  # すべての設問を格納
+    current_question = []  # 現在処理中の設問を格納
+
+    for p in doc.paragraphs:
+        text = p.text.strip()
+
+        # 「●設問解説」が見つかったらフラグをオン
+        if text.startswith("●設問解説"):
+            explanation_flg = True
+            continue
+
+        # 「解答・配点」が見つかったらフラグをオフ
+        if explanation_flg and "解答・配点" in text:
+            explanation_flg = False
+            continue
+
+        # フラグがオンの場合、設問を処理
+        if explanation_flg:
+            # 新しい「問」で始まる設問が見つかったら保存
+            if text.startswith("問") and current_question:
+                all_questions.append("\n".join(current_question))
+                current_question = []
+
+            # 現在の段落を追加
+            if text:
+                current_question.append(text)
+
+    # 最後の設問を保存
+    if current_question:
+        all_questions.append("\n".join(current_question))
+
+    return all_questions
 # 使用例
 if __name__ == "__main__":
     word_file_path = "example.docx"  # Wordファイルのパスを指定

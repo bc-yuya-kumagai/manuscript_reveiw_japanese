@@ -343,7 +343,150 @@ def check_choices2question_mapping(question_text:str):
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e
-    
+
+def check_modern_kana_usage(content: str) -> dict:
+    """問題文から指定されたフレーズである、「（現代仮名遣いでよい。）」という指示があるかどうか判定します。"""
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から指定された条件があるかチェックするボットです。"
+                "漢字の読み取り問題かどうか、また指定された指示が含まれているかの2つを判断します。"
+                "※読み取り問題とは、漢字を現代仮名遣いで書く問題のことである。「カタカナを漢字に改めよ。」のような表現が使用されている。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の問題文に「（現代仮名遣いでよい。）」という指示があるかどうか判定します。\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "KanjiReadingResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_target_evaluation": {
+                    "type": "boolean",
+                    "description": "漢字の読み取り問題であれば True なければ False とします。"
+                },
+                "is_modern_kana_usage_specified": {
+                    "type": "boolean",
+                    "description": "問題文に「（現代仮名遣いでよい。）」という指示が含まれていればTrue、そうでない場合はFalse"
+                },
+            },
+            "required": ["is_target_evaluation", "is_modern_kana_usage_specified"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
+
+def check_explanation_question_include_keyword(question_text: str) -> dict:
+    """
+    解説文章の中に、正答に関する記述がある場合、「正答」というワードが使われているか判断します。
+
+    Args:
+        question_text (str): 入力された文章。
+
+    Returns:
+        dict: 結果を含むJSON形式の辞書。is_evaluation_targetと、is_keyword_found
+    """
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+
+                "あなたは解説文で正答番号を述べている文章を評価し、正答番号が明確に含まれていれば評価するボットです。"
+                "# 指示"
+                "※下記の指示に忠実に従いなさい。"
+                "- 正答番号が述べられていないものは、is_evaluation_targetをTrueにすべきではありません。"
+                "- is_evaluation_targetで解説内で正答番号を述べるフレーズで「したがって、正答は３である。」のように完全一致で「正答」というフレーズと、正答番号が述べられていれば、Trueにし、そうでない場合、False"
+                "- 解説内で正答番号を述べるフレーズで「したがって、正解は３である。」や「したがって、正答は３である。」などの表現に近いものがある場合is_evaluation_targetをTrueにし、そうでなければFalseとします。"
+            )
+        },
+        {
+            "role": "user",
+            "content": ( 
+                "次の解説文を評価してください。"
+                "解説文:"
+                f"===\n{question_text}\n==="
+                f"{question_text}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    json_schema = {
+        "name": "KeywordCheckResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_evaluation_target": {
+                    "type": "boolean",
+                    "description": (
+                        "解説内で正答番号を述べるフレーズで「したがって、正解は３である。」や「したがって、正答は３である。」などの表現に近いものがある場合Trueにし、そうでなければFalseとします。"
+                    )
+                },
+                "is_keyword_found": {
+                    "type": "boolean",
+                    "description": "解説内で正答番号を述べるフレーズで「したがって、正答は３である。」のように完全一致で「正答」というフレーズと、正答番号が述べられていれば、Trueにし、そうでない場合、False"
+                },
+                "error_similar_words": {
+                    "type": "string",
+                    "description": "「正答」という言葉が使われていない場合に似た意味の単語を抜き出してください。"
+                },
+            },
+            "required": ["is_evaluation_target", "is_keyword_found", "error_similar_words"],
+            "additionalProperties": False
+        }
+    }
+
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()['choices'][0]['message']['content'])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]") if response else logger.error("response is None")
+        raise e
+
 def check_tekitou_exact_match_in_question_statement(content: str) -> dict:
     """
     表現内に「適当」に類似する表現が含まれている場合、評価対象とし、その使用状況を確認。
@@ -418,6 +561,199 @@ def check_tekitou_exact_match_in_question_statement(content: str) -> dict:
         response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
         response.raise_for_status()
         return response.json()  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
+
+def check_phrase_in_writing_question(question_text: str) -> dict:
+    """漢字の書き取り設問で、「（楷書ではっきり大きく書くこと。）」の指示があるかチェック"""
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から指定された条件があるかチェックするボットです。"
+                "漢字の書き取り問題かどうか、また指定された指示が含まれているかの2つを判断します。"
+                "※書き取り問題とは、カタカナを漢字に直す問題のことで、「カタカナを漢字に改めよ。」のような表現が使用されている。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の問題文に「（楷書ではっきり大きく書くこと。）」という指示があるかどうか判定します。\n"
+                "===\n"
+                f"{question_text}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "KanjiWritingResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_target_evaluation": {
+                    "type": "boolean",
+                    "description": "漢字の書き取り問題であれば True そうでなければ False とします。"
+                },
+                "is_valid": {
+                    "type": "boolean",
+                    "description": "問題文に「（楷書ではっきり大きく書くこと。）」という指示が含まれていればTrue、そうでない場合はFalse"
+                },
+            },
+            "required": ["is_target_evaluation", "is_valid"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
+
+def extract_main_score_from_text(question_main_text: str) -> dict:
+    """問題文から問題のタイトル文章と配点を抜き出す"""
+
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から指定された条件があるかチェックするボットです。"
+                "「一　現代文（評論）」のような問題のタイトル文章があれば、それを抜き出してください。漢数字 + スペース + 国語の科目名(？？)のようになっている箇所を探して抜き出します。"
+                "配点が書かれていなければ、Noneで返し、書かれていればアラビア数字で返します。"
+                "スペースは半角にしてください。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下のテキストから問題のタイトル文章と、配点を抜き出します。\n"
+                "===\n"
+                f"{question_main_text}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "ExtractMainScoreResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "question_title": {
+                    "type": "string",
+                    "description": "問題文のタイトル文章を抜き出します。スペースは半角でお願いします。"
+                },
+                "question_score": {
+                    "type": "integer",
+                    "description": "問題文の配点を抜き出します。"
+                },
+            },
+            "required": ["question_title", "question_score"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
+
+def extract_question_sentence_word_count(content: str) -> dict:
+    """問題文から文字数が指定されているかチェックし、指定されていれば指定された文字数を返す"""
+    # OpenAIメッセージの定義
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "あなたは問題文から文字数指定がある問題を抽出するボットです。"
+            )
+        },
+        {
+            "role": "user",
+            "content": (
+                f"以下の問題章から文字数指定があるかどうか判定します。\n"
+                "===\n"
+                f"{content}\n"
+                "===\n"
+            )
+        }
+    ]
+
+    # 構造化出力スキーマ
+    json_schema = {
+        "name": "WordCountResponse",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "is_target_evaluation": {
+                    "type": "boolean",
+                    "description": "文字数指定があれば true とし、なければ false とします。"
+                },
+                "question_no": {
+                    "type": "string",
+                    "description": "問の識別子。例: 問1, 問2"
+                },
+                "word_count": {
+                    "type": "integer",
+                    "description": "指定されている文字数"
+                },
+            },
+            "required": ["is_target_evaluation", "question_no", "word_count"],
+            "additionalProperties": False
+        }
+    }
+
+    # リクエストペイロード
+    payload = {
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": json_schema
+        },
+        "temperature": 0.0
+    }
+
+    # リクエスト送信
+    try:
+        response = requests.post(url, headers=headers, json=payload, params={"api-version":"2024-08-01-preview"})
+        response.raise_for_status()
+        return json.loads(response.json()["choices"][0]["message"]["content"])  # JSONレスポンスを返す
     except Exception as e:
         logger.error(f"response[{response.json()}]")
         raise e

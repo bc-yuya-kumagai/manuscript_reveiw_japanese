@@ -1,13 +1,20 @@
 # チェック系の関数をまとめたモジュール
 import logging
 import re
+import src.doc_util
 from typing import List
+import src.doc_util
 import src.llm_util
+from docx import Document
 from docx.text.paragraph import Paragraph
 import json
+from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+# 大問の点数を取得する正規表現
+
+
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -230,6 +237,38 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
 
+def check_explanation_of_questions_include_word(doc: Document):
+    """
+    解説文章の中に、「正答」以外の単語が含まれていないかをチェックします。
+    
+    Args:
+        doc (Document): 対象となる文書オブジェクト。
+    
+    Returns:
+        InvalidItem: 表記ゆれが検出された場合のエラー情報を返します。
+    """
+    # 解説文のリストを取得
+    explanation_question_list = src.doc_util.get_explanation_of_questions(doc)
+    # 各解説文についてチェック
+    for explanation_question_text in explanation_question_list:
+        # 解説文にキーワードが含まれているかをチェック
+        check_result = src.llm_util.check_explanation_question_include_keyword(explanation_question_text)
+        # 評価対象であり、キーワードが見つからない場合
+        if check_result["is_evaluation_target"] is True and check_result["is_keyword_found"] is False:
+            # エラー文を短縮して表示用に加工
+            if len(explanation_question_text) > 15:
+                error_text_one_line = explanation_question_text[:12] + "..."
+            else:
+                error_text_one_line = explanation_question_text
+            # エラーメッセージを構築
+            error_message = (
+                f"解説中の正答を述べている文章に、「正答」という単語が使われていない箇所があります。"
+                f"[「{error_text_one_line}」付近で誤って「{check_result['error_similar_words']}」のように使用されています。]\n"
+            )
+            if error_message:
+                # 表記ゆれエラーを返す
+                return InvalidItem(type="解説文での表記ゆれエラー", message=error_message)
+
 def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
     """設問に正しく「適当」が使用されているかチェックする"""
     result = ""
@@ -284,6 +323,135 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
                 if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
                     return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
                 buffer_question_no += content["text"]
+
+def check_part_question_score(question_doc:Document, answer_doc:Document):
+    
+    main_score_list = src.doc_util.extract_question_number(question_doc)
+    answer_score_list = src.doc_util.extract_question_number(answer_doc)
+
+    question_dict = {q["question_title"]: q["question_score"] for q in main_score_list}
+    answer_dict = {a["question_title"]: a["question_score"] for a in answer_score_list}
+    
+    # 問題にあるのに解答にないもの
+    missing_in_answer = [q for q in question_dict if q not in answer_dict]
+    
+    # 解答にあるのに問題にないもの
+    extra_in_answer = [a for a in answer_dict if a not in question_dict]
+    
+    # 点数不一致のリスト
+    score_mismatch = {
+        q: (question_dict[q], answer_dict[q])
+        for q in question_dict if q in answer_dict and question_dict[q] != answer_dict[q]
+    }
+    
+    error_messages = []
+    if missing_in_answer:
+        error_messages.append(f'問題にあるが解答にない: {missing_in_answer}')
+    if extra_in_answer:
+        error_messages.append(f'解答にあるが問題にない: {extra_in_answer}')
+    if score_mismatch:
+        error_messages.append(f'点数不一致: {score_mismatch}')
+    
+    if error_messages:
+        return InvalidItem(type="大問の配点検証エラー", message="; ".join(error_messages))
+
+# 本文から傍注のテキストを抜き出す正規表現をコンパイル
+annotation_extend_main_text_pattern = re.compile(r"（注[^）]*）.*?。")
+def check_exists_annotation(doc: Document):
+    """
+    傍注が本文内にすべて含まれているか検査する関数。
+
+    Parameters:
+        doc (Document): チェック対象のドキュメントオブジェクト。
+
+    Returns:
+        InvalidItem: 傍注が本文内に含まれていない場合のエラー情報。
+        None: 全ての傍注が本文内に正しく含まれている場合。
+    """
+    # 本文と傍注を抽出
+    main_texts_and_annotation_texts = src.doc_util.extract_main_text(doc)
+
+    # # 本文中から傍注の文章を抽出
+    annotation_sentences = []
+    missing_annotations = []  # 本文内に存在しない傍注のリスト
+    found_count = 0  # 本文内に存在する傍注の数
+    for main_text_and_annotation in main_texts_and_annotation_texts:
+        # 本文と傍注から傍注のみを抽出
+        annotation_list = src.doc_util.extract_annotation_text_to_list(main_text_and_annotation)
+        # 本文と傍注から本文のみを抽出
+        main_text_list = src.doc_util.extract_main_text_and_annotation_to_main_text(main_text_and_annotation)
+        
+        # 本文中から傍注の文章を抽出
+        annotation_sentences = [] # 本文から傍注部分を抽出し格納するリスト
+        for paragraph in main_text_list:
+            matches = annotation_extend_main_text_pattern.findall(paragraph.text)
+            if matches:
+                annotation_sentences.extend(matches)
+
+        # 傍注リストの各項目が本文内に存在するかチェック
+        for annotation_name in annotation_list:
+            occurrence_count = sum(annotation_name in sentence for sentence in annotation_sentences)
+            # 傍注が本文内に存在しない場合
+            if occurrence_count == 0:
+                missing_annotations.append(annotation_name)
+            else:
+                found_count += occurrence_count
+
+    # OKの数と本文内の傍注数が一致しているか確認
+    if found_count != len(annotation_sentences) and missing_annotations:
+        missing_annotation_names = ",".join(missing_annotations)
+        return InvalidItem(type="傍注箇所エラー", message=f"傍注部分の「{missing_annotation_names}」が、本文の注に含まれていません。")
+    elif found_count != len(annotation_sentences):
+        return InvalidItem(type="傍注箇所エラー", message="本文の傍注部分で、注の説明に含まれていないものがあります。")
+
+def check_answer_contains_points(doc:list):
+    """記述設問の場合に、解説のポイントが含まれているかチェックする"""
+    question_explanation_list = src.doc_util.get_explanation_of_questions(doc)
+            
+    for question in question_explanation_list:
+        
+        if "記述設問" in question:
+            if "解答のポイント" not in question:
+                # 文字を丸める
+                error_question = ""
+                if len(question) > 15:
+                    error_question = question[:15] + "…"
+                else:
+                    error_question = question
+                # Exceptionを発火
+                return InvalidItem(type="フレーズ不足", message=f"{error_question}に、記述設問の場合解説のポイントが含まれていません。")
+
+def check_phrase_in_kanji_writing_question(question_texts: Document):
+    """
+    設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします。
+
+    Args:
+        question_texts (Document): チェック対象の設問データ。
+
+    Returns:
+        InvalidItem: 指定フレーズが不足している場合のエラーメッセージを含むオブジェクト。
+    """
+    # 設問内の段落ごとに処理を行う
+    for paragraphs in question_texts:
+        # 各段落のテキストを改行で結合して一つの設問テキストを作成
+        question_text = "\n".join(paragraph.text for paragraph in paragraphs)
+        
+        # 現代仮名遣いの指定フレーズが含まれているかチェック
+        result = src.llm_util.check_phrase_in_writing_question(question_text)
+        
+        # 条件を満たす場合、エラーを生成
+        if result["is_target_evaluation"] and not result["is_valid"]:
+            # エラー表示用に設問テキストの先頭行を取得（最大15文字）
+            error_text_one_line = question_text.splitlines()[0][:15]
+            # 15文字を超える場合は末尾を "..." に丸める
+            if len(question_text.splitlines()[0]) > 15:
+                error_text_one_line = error_text_one_line[:12] + "..."
+            
+            # エラーメッセージを追加
+            error_text = f"「{error_text_one_line}」付近で、「（楷書ではっきり大きく書くこと。）」というフレーズが不足しています。\n"
+
+            # エラー内容を含むオブジェクトを返す
+            return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
 
 def convert_kanji_number_to_int(kanji_number)->int:
     """漢数字を数値に変換する
@@ -365,3 +533,99 @@ def check_kanji_question_index_order(paragraphs: List[object]) -> None:
         errors.append(oe)
 
     return errors
+
+def check_kanji_reading_missing_expressions(question_texts: Document):
+    error_text = ""
+    for paragraphs in question_texts:
+        question_text = ""
+        for paragraph in paragraphs:
+            question_text += str(paragraph.text) + "\n"
+        result = src.llm_util.check_modern_kana_usage(question_text)
+        if result["is_target_evaluation"] is True and result["is_modern_kana_usage_specified"] is False:
+            error_text_one_line = question_text.splitlines()[0]
+            
+            # 15文字以上だと丸める
+            if len(error_text_one_line) > 15:
+                error_text_one_line = error_text_one_line[:15 - 3] + "..."
+            
+            error_text += f"「{error_text_one_line}」付近で、「（現代仮名遣いでよい。）」というフレーズが不足しています。\n"
+
+    return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+
+def check_question_sentence_word_count(question_texts, answer_texts):
+    """問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック"""
+    question_list = []
+    answer_list = []
+
+    # 質問部分のテキストを抽出
+    for paragraphs in question_texts:
+        question_text = ""
+        for paragraph in paragraphs:
+            question_text += paragraph.text
+        if question_text:
+            question_list.append(src.llm_util.extract_question_sentence_word_count(question_text))
+    
+    # 解説部分のテキストを抽出
+    answer_record_flg = False
+    for paragraphs in answer_texts:
+        answer_text = ""
+        for paragraph in paragraphs:
+            if paragraph.text == "●本文解説":
+                answer_record_flg = True
+                break
+            if answer_record_flg is False:
+                answer_text += paragraph.text
+        if answer_text:
+            answer_list.append(src.llm_util.extract_question_sentence_word_count(answer_text))
+
+    # 評価
+    # 結果を格納するリスト
+    mismatched_word_count = []
+    
+    # `is_target_evaluation` が True の項目をフィルタリング
+    target_questions = [q for q in question_list if q['is_target_evaluation']]
+    target_answers = [a for a in answer_list if a['is_target_evaluation']]
+    
+    # 質問番号をキーにした辞書を作成（高速なアクセスのため）
+    question_dict = {q['question_no']: q for q in target_questions}
+    answer_dict = {a['question_no']: a for a in target_answers}
+    
+    # 質問リストをループして得点の一致を確認
+    for question in target_questions:
+        question_no = question['question_no']
+        question_word_count = question['word_count'] 
+        
+        # 解説内にこの設問の文字数について言及されているか確認
+        answer = answer_dict.get(question_no)
+        if not answer:
+            mismatched_word_count.append({
+                'question_no': question_no,
+                'reason': '解説内にこの設問の文字数について言及されていません。'
+            })
+            continue
+        
+        answer_score = answer['word_count']
+        
+        # 文字数が一致しているか確認
+        if question_word_count != answer_score:
+            mismatched_word_count.append({
+                'question_no': question_no,
+                'reason': '文字数が一致していません。'
+            })
+    
+    # 解説リストをループして、解説にのみ言及されている文字数がないか確認
+    for answer in target_answers:
+        answer_no = answer['question_no']
+        if answer_no not in question_dict:
+            mismatched_word_count.append({
+                'question_no': answer_no,
+                'reason': '解説文にのみ文字数が言及されています。'
+            })
+            
+    # 結果を返す
+    if len(mismatched_word_count) > 0:
+        problem_message= ""
+        for mismatch in mismatched_word_count:
+            problem_message += f'問題番号：{mismatch["question_no"]}、理由：{mismatch["reason"]}\n'
+            
+        return InvalidItem(type="指定文字数不一致", message=f'問題と解説で指定されている文字数に一致していないものがあります。[{problem_message}]')
