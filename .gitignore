@@ -164,3 +164,4 @@ cython_debug/
 # ローカル環境用ファイル置き場
 local/
 tests/.DS_Store
+.DS_Store

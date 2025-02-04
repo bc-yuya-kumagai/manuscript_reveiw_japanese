@@ -8,6 +8,7 @@ import src.llm_util
 from docx import Document
 from docx.text.paragraph import Paragraph
 import json
+import jaconv
 from docx import Document
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -136,19 +137,17 @@ def check_jumped_index(passage_sideLine_list) -> List[InvalidItem]:
 def check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions):
     """傍線部の添え字がすべて設問の中で参照されているかをチェックする
     """
-    indexes_master = [i.index_text for i in passage_sideLine_list]
-    indexes_memo = indexes_master.copy()
-    keyword = "傍線部"
+    # カタカナ記号を全て全角にする # indexes_memo の要素をuniqueにする
+    indexes_memo = list(set([jaconv.h2z(i.index_text) for i in passage_sideLine_list]))
+    
     # sideline_questionsから添え字を取得する 
     # ”傍線部<添え字1>・<添え字2>・<添え字3>"という形式で記載されている。"・"で連結された文字列を添え字として取得する
     # 例: "二重傍線部ⓐ・ⓑの本文中における意味として最も適当なものを、次の各群の１～５のうちからそれぞれ一つずつ選び、番号で答えよ。" -> 「ⓐ」、「ⓑ」を取得する
     for line in slideline_questions:
         text_indexes_in_question_text = src.llm_util.get_text_indexes_from_question(line)
-        for index_text in indexes_master: 
-            if index_text in text_indexes_in_question_text:
-                if index_text in indexes_memo:
-                    indexes_memo.remove(index_text) 
-
+        for q_idx in text_indexes_in_question_text:
+            if jaconv.h2z(q_idx) in indexes_memo:
+                indexes_memo.remove(jaconv.h2z(q_idx))
         if len(indexes_memo) == 0:
             return True
     return InvalidItem(type="添え字不足", message=f'傍線部の添え字{str(indexes_memo)}が設問の中で参照されていません')
@@ -158,18 +157,18 @@ def check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slidel
         設問中にどのような形式で添え字が記載されているかは
         "傍線部1・2"、"傍線部1または2"、"傍線部1または2"とか"傍線部1、2"などバリエーションが多いのでルールベースでの取得が難しいためLLMで取得する
     """
-    indexes = [i.index_text for i in passage_sideLine_list]
+    indexes = [jaconv.h2z(i.index_text) for i in passage_sideLine_list]
     not_used_indexes = []
 
     for question_line in slideline_questions:
         text_indexes_in_question_text = src.llm_util.get_text_indexes_from_question(question_line)
         # indexes_memoからindexes_memoを削除する
         for idx in text_indexes_in_question_text:
-            if idx not in indexes:
+            if jaconv.h2z(idx) not in indexes:
                 not_used_indexes.append(idx)
         if len(not_used_indexes) == 0:
             return True
-    return InvalidItem(type="添え字不足", message=f'傍線部の添え字{str(not_used_indexes)}が設問の中で参照されていません')
+    return InvalidItem(type="添え字不足", message=f'傍線部の添え字{str(not_used_indexes)}が問題文の中で参照されていません')
 
 def get_question_type(question_text:str):
     """引数で与えられた問題文から、選択問題か記述問題かを取得する"""

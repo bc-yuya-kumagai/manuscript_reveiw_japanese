@@ -22,7 +22,7 @@ def get_underline_runs(doc,first_paragraph_index:int,last_paragraph_index:int):
     for p in doc.paragraphs[first_paragraph_index:last_paragraph_index]:
         for run in p.runs:
             # スタイルが1-5-10または1-5-20の場合は下線部として抽出
-            if run.style.style_id == '1-5-10': # or run.style.style_id == '1-5-20': 二重傍線スタイル1-5-20は誤爆する？
+            if (len(run.text)>0) and (run.style.style_id == '1-5-10' or run.style.style_id == '1-5-20'): #二重傍線スタイル1-5-20は誤爆する？
                 runs.append(run)
     return runs
 
@@ -45,7 +45,7 @@ def get_previous_text_index_run(sideline_run):
     else:
         return None
 
-def get_first_question_paragraph_index(doc):
+def get_first_question_paragraph_index(doc, start:int, end:int):
     """ 、question_heading_style_idの見出しを持つ段落のインデックスを返す
     インデックス順に文書が構成されていることを前提とする
     
@@ -59,16 +59,16 @@ def get_first_question_paragraph_index(doc):
     #                 return i
 
     # 仮の実装 インデントや空白なしで行頭が「問」で始まる段落を問の見出しとする
-    for i, p in enumerate(doc.paragraphs):
+    for i, p in enumerate(doc.paragraphs[start:end+1]):
         if p.text.startswith("問"):
             return i
         
-def get_questions(doc:Document)->List[Paragraph]:
+def get_questions(doc:Document,start:int, end:int)->List[Paragraph]:
     """docから問から次の問までのPhraseを取得する
     """
     questions=[]
     question_phrases = []
-    for p in doc.paragraphs:
+    for p in doc.paragraphs[start:end+1]:
         
         if p.text.startswith("問"):
             # 次の問に到達した場合は、現時点の設問文をリストに追加し、設問文を初期化する
