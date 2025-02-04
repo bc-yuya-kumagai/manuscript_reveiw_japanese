@@ -34,8 +34,12 @@ class InvalidItem:
     def __init__(self, type:str, message:str):
         self.type = type
         self.message = message
+        self.section:str = None
+        self.question_number:str = None
 
-def check_duplicated_index(passage_sideLine_list):
+from typing import Generator
+
+def check_duplicated_index(passage_sideLine_list) -> Generator[InvalidItem, None, None]:
     """リストから重複する添え字を取得する
     """
     invalid_text_indexis = []
@@ -213,7 +217,7 @@ def check_choices2question_mapping(question_text:str):
         InvalidItems.append(InvalidItem(type=result["type"], message=result["message"]))
     return InvalidItems
 
-def check_choices_sequence(question_phrases:str):
+def check_choices_sequence(question_phrases:List[Paragraph]):
     """選択肢が連番で記載されているかをチェックする
     """
     # 選択肢リストの中から選択肢の添え字を取得する
@@ -356,7 +360,7 @@ def check_part_question_score(question_doc:Document, answer_doc:Document):
 
 # 本文から傍注のテキストを抜き出す正規表現をコンパイル
 annotation_extend_main_text_pattern = re.compile(r"（注[^）]*）.*?。")
-def check_exists_annotation(doc: Document):
+def check_exists_annotation(doc: Document, start:int, end:int):
     """
     傍注が本文内にすべて含まれているか検査する関数。
 
@@ -368,7 +372,7 @@ def check_exists_annotation(doc: Document):
         None: 全ての傍注が本文内に正しく含まれている場合。
     """
     # 本文と傍注を抽出
-    main_texts_and_annotation_texts = src.doc_util.extract_main_text(doc)
+    main_texts_and_annotation_texts = src.doc_util.extract_main_text(doc, start, end)
 
     # # 本文中から傍注の文章を抽出
     annotation_sentences = []

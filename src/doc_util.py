@@ -14,7 +14,6 @@ import re
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
 # wordファイルから下線部のrunを抽出する
-
 def get_underline_runs(doc,first_paragraph_index:int,last_paragraph_index:int):
     """ first_paragraph_indexとlast_paragraph_indexの間で underlined runを取得する
     last_paragraph_indexが-1の場合は最後のdocx_fileの最後の段落までを検索する"""
@@ -81,7 +80,7 @@ def get_questions(doc:Document,start:int, end:int)->List[Paragraph]:
     questions.append(question_phrases)
     return questions
 
-def extract_question_paragraphs(doc: Document) -> List[Paragraph]:
+def extract_question_paragraphs(doc: Document, start:int, end:int) -> List[Paragraph]:
     """
     文書から「問」で始まるパラグラフを抽出する
 
@@ -89,7 +88,7 @@ def extract_question_paragraphs(doc: Document) -> List[Paragraph]:
         List[Paragraph]: 「問」で始まるParagraphオブジェクトのリスト
     """
     question_paragraphs = []
-    for paragraph in doc.paragraphs:
+    for paragraph in doc.paragraphs[start:end+1]:
         if paragraph.text.startswith("問"):
             # 「問」で始まるパラグラフをリストに追加
             question_paragraphs.append(paragraph)
@@ -125,7 +124,7 @@ def get_paragraph_text_by_keyword(doc:Document,word:str):
         if word in p.text:
             yield p.text
 
-def get_choice_indexes_from_choices_list(question_phrases):
+def get_choice_indexes_from_choices_list(question_phrases:List[Paragraph]):
     """選択肢のリストから選択肢の添え字を取得する
     """
     indexes = []
@@ -488,13 +487,13 @@ def extract_question_number(doc):
 
     return question_main_score_list
 title_question = re.compile(r'^[一二三四五六七八九十百千]+　[^\s　]+(?:　[^\s　]+)*')
-def extract_main_text(doc: Document) -> list[list[Document]]:
+def extract_main_text(doc: Document, start, end) -> list[list[Document]]:
     """大問から、問の前までの全テキストを抽出します。"""
     all_texts = []
     current_text = []
     start_collecting = False
 
-    for p in doc.paragraphs:
+    for p in doc.paragraphs[start:end+1]:
         if title_question.match(p.text):
             if current_text:  # 既に収集中の本文があるなら保存
                 all_texts.append(current_text)
@@ -645,13 +644,13 @@ def extract_question_number(doc):
 
     return question_main_score_list
 title_question = re.compile(r'^[一二三四五六七八九十百千]+　[^\s　]+(?:　[^\s　]+)*')
-def extract_main_text(doc: Document) -> list[list[Document]]:
+def extract_main_text(doc: Document, start:int, end:int) -> List[Paragraph]:
     """大問から、問の前までの全テキストを抽出します。"""
     all_texts = []
     current_text = []
     start_collecting = False
 
-    for p in doc.paragraphs:
+    for p in doc.paragraphs[start:end+1]:
         if title_question.match(p.text):
             if current_text:  # 既に収集中の本文があるなら保存
                 all_texts.append(current_text)
@@ -749,6 +748,13 @@ def get_explanation_of_questions(doc: Document) -> List[str]:
         all_questions.append("\n".join(current_question))
 
     return all_questions
+
+# 
+def set_section_at_invalid_iterms(invalid_items:List[Section], section_number:str):
+    """invalid_itemのsection_numberを修正する"""
+    for i in invalid_items:
+        i.section_number = section_number
+    return invalid_items
 
 # 使用例
 if __name__ == "__main__":

@@ -26,13 +26,6 @@ logger = logging.getLogger(__name__)
 
 # temp_problem_file_path, temp_solution_file_path
 def analyze_problem_doc(problem_doc, temp_problem_file_path):
-    invalid_list = []
-    # # チェックエラーリスト
-    # invalid_list = {
-    #     "problem": [],  # 問題のチェックエラー
-    #     "solution": [],  # 解説のチェックエラー
-    #     "common": []  # 問題・解説共通のチェックエラー
-    # }
     problem_invalid_list = []
     # 問題のみのチェック
     if problem_doc:
@@ -53,84 +46,97 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
             # ページ区切り箇所にゴミが残るのでそれを削除
             passage_sideLine_list = doc_util.clean_sileline_list_in_page_break(passage_sideLine_list)
             # 傍線部の添え字重複チェック
-            problem_invalid_list += ck.check_duplicated_index(passage_sideLine_list)
-
-        # 問のテキストを設問ごとにリストでの取得
-        question_texts = doc_util.get_questions(problem_doc, start= section.star_paragraph_index, end=section.end_paragraph_index)
-
-        # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
-        check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
-        if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
-            problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
-
-        # 傍線部の連番飛びチェック
-        jumped = ck.check_jumped_index(passage_sideLine_list)
-        if isinstance(jumped,InvalidItem):
-            problem_invalid_list.append(jumped)
-
-        # 傍線部の添え字が設問内で参照されているかチェック
-        slideline_questions = list(doc_util.get_paragraph_text_by_keyword(problem_doc, "傍線部"))
-        result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
-        if isinstance(result_sl_mapping, InvalidItem):
-            problem_invalid_list.append(result_sl_mapping)
-
-        # 設問内の添字が問題文中にあるかチェック
-        result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
-        if isinstance(result_sl_mapping, InvalidItem):
-            problem_invalid_list.append(result_sl_mapping)
-
-        # 選択肢のチェック
-        for question in question_texts:
-            question_text = "\n".join([q.text for q in question])
-            if ck.get_question_type(question_text) == "選択式":
-                errors = ck.check_choices_mapping(question)
-                problem_invalid_list.extend(errors)
+            problem_invalid_list += doc_util.set_section_at_invalid_iterms(ck.check_duplicated_index(passage_sideLine_list), section.section_number)
         
-        # 選択肢に重複や歯抜けがないかチェック
-        for question in question_texts:
-            question_text = "\n".join([q.text for q in question])
-            if ck.get_question_type(question_text) == "選択式":
-                errors = ck.check_choices_sequence(question)
-                problem_invalid_list.append(errors)
-                
-        # 「適当でないもの」がMSゴシックであるかチェック
-        for question in question_texts:
-            result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
-            if isinstance(result_check_font_of_unfit_item, InvalidItem):
-                problem_invalid_list.append(result_check_font_of_unfit_item)
+            # 問のテキストを設問ごとにリストでの取得
+            question_texts = doc_util.get_questions(problem_doc, start= section.star_paragraph_index, end=section.end_paragraph_index)
 
-        # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
-        check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
-        if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
-            problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
+            # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
+            check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
+            if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
+                check_keyword_exact_match_in_question_statement.section_number = section.section_number
+                problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
+
+            # 傍線部の連番飛びチェック
+            jumped = ck.check_jumped_index(passage_sideLine_list)
+            if isinstance(jumped,InvalidItem):
+                jumped.section_number = section.section_number
+                problem_invalid_list.append(jumped)
+
+            # 傍線部の添え字が設問内で参照されているかチェック
+            slideline_questions = list(doc_util.get_paragraph_text_by_keyword(problem_doc, "傍線部"))
+            result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
+            if isinstance(result_sl_mapping, InvalidItem):
+                result_sl_mapping.section_number = section.section_number
+                problem_invalid_list.append(result_sl_mapping)
+
+            # 設問内の添字が問題文中にあるかチェック
+            result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
+            if isinstance(result_sl_mapping, InvalidItem):
+                result_sl_mapping.section_number = section.section_number
+                problem_invalid_list.append(result_sl_mapping)
+
+            # 選択肢のチェック
+            for question in question_texts:
+                question_text = "\n".join([q.text for q in question])
+                if ck.get_question_type(question_text) == "選択式":
+                    errors = doc_util.set_section_at_invalid_iterms(ck.check_choices_mapping(question), section_number=section.section_number)
+                    problem_invalid_list.extend(errors)
+            
+            # 選択肢に重複や歯抜けがないかチェック
+            for question in question_texts:
+                question_text = "\n".join([q.text for q in question])
+                if ck.get_question_type(question_text) == "選択式":
+                    error = ck.check_choices_sequence(question)
+                    if isinstance(error, InvalidItem):
+                        error.section_number = section.section_number
+                        problem_invalid_list.append(error)
+                    
+            # 「適当でないもの」がMSゴシックであるかチェック
+            for question in question_texts:
+                result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
+                if isinstance(result_check_font_of_unfit_item, InvalidItem):
+                    result_check_font_of_unfit_item.section_number = section.section_number
+                    problem_invalid_list.append(result_check_font_of_unfit_item)
+
+            # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
+            check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
+            if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
+                check_keyword_exact_match_in_question_statement.section_number = section.section_number
+                problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
         
-        # 文書から「問」で始まるパラグラフを抽出する
-        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc)
+            # 文書から「問」で始まるパラグラフを抽出する
+            extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
 
-        # 「問~」がMSゴシックかチェック
-        check_heading_question_font_item = ck.check_heading_question_font(temp_problem_file_path, extract_paragraphs)
-        if isinstance(check_heading_question_font_item, InvalidItem):
-            problem_invalid_list.append(check_heading_question_font_item)
+            # 「問~」がMSゴシックかチェック
+            check_heading_question_font_item = ck.check_heading_question_font(temp_problem_file_path, extract_paragraphs)
+            if isinstance(check_heading_question_font_item, InvalidItem):
+                check_heading_question_font_item.section_number = section.section_number
+                problem_invalid_list.append(check_heading_question_font_item)
 
-        # 設問番号が順番通りになっているかチェック
-        check_kanji_number_orders =  ck.check_kanji_question_index_order(extract_paragraphs)
-        for error in check_kanji_number_orders:
-            problem_invalid_list.append(error)
+            # 設問番号が順番通りになっているかチェック
+            check_kanji_number_orders =  doc_util.set_section_at_invalid_iterms(ck.check_kanji_question_index_order(extract_paragraphs), section_number=section.section_number)
+            for error in check_kanji_number_orders:
+                problem_invalid_list.append(error)
 
-        #傍注の説明の内容が本文に入っているかチェック
-        check_exists_annotation_result = ck.check_exists_annotation(problem_doc)
-        if isinstance(check_exists_annotation_result, InvalidItem):
-            problem_invalid_list.append(check_exists_annotation_result)
+            #傍注の説明の内容が本文に入っているかチェック
+            check_exists_annotation_result = ck.check_exists_annotation(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+            if isinstance(check_exists_annotation_result, InvalidItem):
+                check_exists_annotation_result.section_number = section.section_number
+                problem_invalid_list.append(check_exists_annotation_result)
 
-        # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
-        check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
-        if isinstance(check_writing_kanji_phrase_error, InvalidItem):
-            problem_invalid_list.append(check_writing_kanji_phrase_error)
+            # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
+            check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
+            if isinstance(check_writing_kanji_phrase_error, InvalidItem):
+                check_writing_kanji_phrase_error.section_number = section.section_number
+                problem_invalid_list.append(check_writing_kanji_phrase_error)
 
-        # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
-        check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
-        if isinstance(check_kanji_reading_missing_result, InvalidItem):
-            problem_invalid_list.append(check_kanji_reading_missing_result)
+            # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
+            check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
+            if isinstance(check_kanji_reading_missing_result, InvalidItem):
+                check_kanji_reading_missing_result.section_number = section.section_number
+                problem_invalid_list.append(check_kanji_reading_missing_result)
+            
     return problem_invalid_list
 
 def analyze_solution_doc(solution_doc):
