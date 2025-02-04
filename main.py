@@ -184,16 +184,69 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
 async def home_page():
     # 簡易的なアップロードフォーム
     return """
-    <html>
-        <head><title>国語原稿チェックツール  機能検証画面</title></head>
-        <body>
-            <h1>Wordファイルアップロード</h1>
-            <form action="/upload" enctype="multipart/form-data" method="post">
-            <input name="docx_file" type="file" accept=".docx">
-            <input type="submit" value="アップロードしてチェック">
-            </form>
-        </body>
-    </html>
+        <html>
+            <head>
+                <title>国語原稿チェックツール 機能検証画面</title>
+                <script>
+                    function displayResponse(data) {
+                        const output = document.getElementById('responseOutput');
+                        output.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                        document.getElementById('loadingMessage').style.display = 'none';
+                    }
+                </script>
+            </head>
+            <body>
+                <h1>Wordファイルアップロード</h1>
+                <form id="uploadForm" action="/upload" enctype="multipart/form-data" method="post">
+                    <label for="problem_file">問題ファイル (問題文):</label>
+                    <input id="problem_file" name="problem_file" type="file" accept=".docx"><br><br>
+                    
+                    <label for="solution_file">解説ファイル (解説文):</label>
+                    <input id="solution_file" name="solution_file" type="file" accept=".docx"><br><br>
+                    
+                    <input type="submit" value="アップロードしてチェック">
+                </form>
+                
+                <div id="loadingMessage" style="display: none; font-weight: bold; color: blue; margin-top: 10px;">処理中...</div>
+                <div id="responseOutput" style="white-space: pre-wrap; border: 1px solid #ccc; padding: 10px; margin-top: 20px;"></div>
+                
+                <script>
+                    document.getElementById('uploadForm').addEventListener('submit', function(event) {
+                        event.preventDefault();
+                        
+                        const formData = new FormData();
+                        const problemFile = document.getElementById('problem_file').files[0];
+                        const solutionFile = document.getElementById('solution_file').files[0];
+                        
+                        if (problemFile) {
+                            formData.append('problem_file', problemFile);
+                        }
+                        
+                        if (solutionFile) {
+                            formData.append('solution_file', solutionFile);
+                        }
+                        
+                        if (!problemFile && !solutionFile) {
+                            alert('少なくとも1つのファイルを選択してください。');
+                            return;
+                        }
+                        
+                        document.getElementById('loadingMessage').style.display = 'block';
+                        document.getElementById('responseOutput').innerHTML = '';
+                        
+                        fetch('/upload', {
+                            method: 'POST',
+                            body: formData
+                        }).then(response => response.json())
+                        .then(data => displayResponse(data))
+                        .catch(error => {
+                            document.getElementById('responseOutput').innerHTML = '<pre>エラーが発生しました: ' + error + '</pre>';
+                            document.getElementById('loadingMessage').style.display = 'none';
+                        });
+                    });
+                </script>
+            </body>
+        </html>
     """
 
 async def save_temp_file(docx_file: UploadFile) -> str:
