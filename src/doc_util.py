@@ -381,10 +381,12 @@ def extract_sections(doc: Document) -> List[Section]:
     Returns:
         List[Section]: 抽出されたセクションのリスト。
     """
-    sections = []
+    sections:List[Section] = []
     section_intervals = gu.extract_intervals(doc.paragraphs, is_start=is_start_section, is_end=is_end_section)
     for interval in section_intervals:
-        section = Section(section_number=interval[0].text[0], body_text="\n".join(p.text for p in interval[1:]))
+        section:Section = Section(section_number=interval.items[0].text[0], body_text="\n".join(p.text for p in interval.items[1:]))
+        section.star_paragraph_index = interval.start
+        section.end_paragraph_index = interval.end
         sections.append(section)
     
     return sections

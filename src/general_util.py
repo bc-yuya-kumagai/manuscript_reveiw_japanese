@@ -1,10 +1,16 @@
 from typing import List, Callable
 
+class Interval:
+    def __init__(self, items: List[object], start: int, end: int):
+        self.items = items
+        self.start = start
+        self.end = end
+    
 def extract_intervals(
     data: List,
     is_start: Callable[[any], bool],
     is_end: Callable[[any], bool]
-) -> List[List]:
+) -> List[Interval]:
     """リストデータから区間を抽出する
     開始と終了の間の区間を取得する
     開始の後にさらに開始が来た場合は、終了を待たずに新しい区間が開始されたものと判定する
@@ -16,26 +22,27 @@ def extract_intervals(
         is_end (Callable[[any], bool]): 区間の終了を判定する関数
 
     Returns:
-        List[List]: 抽出された区間のリスト
+        List[Interval]: 抽出された区間のリスト
 
     """
     intervals = []
     stack = []
-    for item in data:
+    for i, item in enumerate(data):
         try:
             if is_start(item):
                 if stack:
-                    intervals.append(stack.pop())
+                    intervals.append(Interval(stack.pop(), start, i))
                 stack.append([item])
+                start = i
             elif is_end(item):
                 if stack:
                     stack[-1].append(item)
-                    intervals.append(stack.pop())
+                    intervals.append(Interval(stack.pop(), start, i))
             elif stack:
                 stack[-1].append(item)
         except Exception as e:
             print(e)
             raise e
     if stack:
-        intervals.append(stack.pop())
+        intervals.append(Interval(stack.pop(), start, len(data)))
     return intervals
