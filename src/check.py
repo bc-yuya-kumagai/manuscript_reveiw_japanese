@@ -289,11 +289,13 @@ def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
         combined_questions.append(result.strip())
 
     # 出力結果
-    for _ , combined in enumerate(combined_questions, start=1):
+    for q_index , combined in enumerate(combined_questions, start=1):
         result = json.loads(src.llm_util.check_tekitou_exact_match_in_question_statement(combined)["choices"][0]["message"]["content"])        
         if result["is_evaluated"] is True and result["is_exact_match"] is False:
-            error_words = ",".join(result["incorrect_usages"])
-            return InvalidItem(type="表記ルールエラー", message=f'表記ルールに反している単語があります。[{error_words}]')
+            invalid_item = InvalidItem(type="表記ルールエラー", message=f'問{q_index}に「適当」が正しく使用されていません [{result["incorrect_usages"]}]')
+            invalid_item.question_number = q_index
+            logger.info(invalid_item.message)
+            yield invalid_item
         
 def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
     """「問~」がMSゴシックかチェック
@@ -458,7 +460,6 @@ def check_phrase_in_kanji_writing_question(question_texts: Document):
         # エラー内容を含むオブジェクトを返す
         return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
         
-
 def convert_kanji_number_to_int(kanji_number)->int:
     """漢数字を数値に変換する
     不正な値があった場合はValueErrorを返す

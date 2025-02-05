@@ -750,11 +750,15 @@ def get_explanation_of_questions(doc: Document) -> List[str]:
     return all_questions
 
 # 
-def set_section_at_invalid_iterms(invalid_items:List[Section], section_number:str):
+from src.check import InvalidItem
+
+def set_section_at_invalid_iterms(invalid_items:List[InvalidItem], section_number:str):
     """invalid_itemのsection_numberを修正する"""
+    results = []
     for i in invalid_items:
         i.section_number = section_number
-    return invalid_items
+        results.append(i)
+    return results
 
 # 使用例
 if __name__ == "__main__":

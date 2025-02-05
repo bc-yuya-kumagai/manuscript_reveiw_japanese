@@ -52,10 +52,9 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
             question_texts = doc_util.get_questions(problem_doc, start= section.star_paragraph_index, end=section.end_paragraph_index)
 
             # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
-            check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
-            if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
-                check_keyword_exact_match_in_question_statement.section_number = section.section_number
-                problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
+            check_keyword_exact_match_in_question_results = ck.check_keyword_exact_match_in_question(question_texts)
+            errors = doc_util.set_section_at_invalid_iterms(check_keyword_exact_match_in_question_results, section_number=section.section_number)
+            problem_invalid_list.extend(list(errors))
 
             # 傍線部の連番飛びチェック
             jumped = ck.check_jumped_index(passage_sideLine_list)
