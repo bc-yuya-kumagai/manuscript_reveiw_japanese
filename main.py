@@ -214,24 +214,75 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
 async def home_page():
     # 簡易的なアップロードフォーム
     return """
-        <html>
-            <head>
-                <title>国語原稿チェックツール 機能検証画面</title>
-            </head>
-            <body>
-                <h1>Wordファイルアップロード</h1>
-                <form action="/upload" enctype="multipart/form-data" method="post" target="uploadTarget">
-                    <label for="problem_file">問題ファイル (問題文):</label>
-                    <input id="problem_file" name="problem_file" type="file" accept=".docx"><br><br>
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>国語原稿チェックツール</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            <style>
+                .upload-box {
+                    border: 2px dashed #0d6efd;
+                    border-radius: 10px;
+                    padding: 100px;
+                    text-align: center;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                }
+                .upload-box:hover {
+                    background-color: #f8f9fa;
+                }
+            </style>
+            <script>
+                function updateFileName(inputId, labelId) {
+                    const input = document.getElementById(inputId);
+                    const label = document.getElementById(labelId);
+                    if (input.files.length > 0) {
+                        label.textContent = input.files[0].name;
+                    } else {
+                        label.textContent = '.docx ファイルのみ対応';
+                    }
+                }
+
+                function validateForm(event) {
+                    const problemFile = document.getElementById('problem_file').files.length;
+                    const solutionFile = document.getElementById('solution_file').files.length;
                     
-                    <label for="solution_file">解説ファイル (解説文):</label>
-                    <input id="solution_file" name="solution_file" type="file" accept=".docx"><br><br>
-                    
-                    <input type="submit" value="アップロードしてチェック">
+                    if (problemFile === 0 && solutionFile === 0) {
+                        alert('問題ファイルまたは解説ファイルのどちらかを選択してください。');
+                        event.preventDefault();
+                    }
+                }
+            </script>
+        </head>
+        <body class="bg-light">
+            <div class="container text-center mt-5">
+                <h1 class="mb-4">国語原稿チェックツール</h1>
+                <form action="/upload" method="post" enctype="multipart/form-data" onsubmit="validateForm(event)">
+                    <div class="row justify-content-center">
+                        <div class="col-md-5">
+                            <label class="upload-box d-block" for="problem_file">
+                                <img src="https://cdn-icons-png.flaticon.com/512/1086/1086534.png" width="50" class="mb-2">
+                                <p class="mb-1">問題ファイルをアップロード</p>
+                                <small class="text-muted" id="problem_label">.docx ファイルのみ対応</small>
+                            </label>
+                            <input id="problem_file" name="problem_file" type="file" accept=".docx" class="d-none" onchange="updateFileName('problem_file', 'problem_label')">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="upload-box d-block" for="solution_file">
+                                <img src="https://cdn-icons-png.flaticon.com/512/1086/1086534.png" width="50" class="mb-2">
+                                <p class="mb-1">解説ファイルをアップロード</p>
+                                <small class="text-muted" id="solution_label">.docx ファイルのみ対応</small>
+                            </label>
+                            <input id="solution_file" name="solution_file" type="file" accept=".docx" class="d-none" onchange="updateFileName('solution_file', 'solution_label')">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-4">確認する</button>
                 </form>
-                
-                
-            </body>
+            </div>
+        </body>
         </html>
     """
 
@@ -252,17 +303,35 @@ def delete_temp_file(file_path: str):
         logger.error(f"Error deleting file {file_path}: {e}")
 
 def convert_to_html_table(data):
-    html = "<table border='1'>"
-    html += "<tr><th>大門</th><th>問</th><th>エラー種別</th><th>メッセージ</th></tr>"
+    html = """
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <table class="table table-bordered table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>大門</th>
+                <th>問</th>
+                <th>エラー種別</th>
+                <th>メッセージ</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
     for problem in data["problem"]:
-        html += "<tr>"
-        html += f"<td>{problem.section_number}</td>"
-        html += f"<td>{problem.question_number}</td>"
-        html += f"<td>{problem.type}</td>"
-        html += f"<td>{problem.message}</td>"
-        html += "</tr>"
-    html += "</table>"
+        html += f"""
+            <tr>
+                <td>{problem.section_number}</td>
+                <td>{problem.question_number}</td>
+                <td>{problem.type}</td>
+                <td>{problem.message}</td>
+            </tr>
+        """
+    html += """
+        </tbody>
+    </table>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    """
     return html
+
 
 @app.post("/upload",response_class=HTMLResponse)
 async def check_docx(problem_file: UploadFile = File(None), solution_file: UploadFile = File(None)):
