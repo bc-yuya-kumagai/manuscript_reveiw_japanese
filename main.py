@@ -51,6 +51,12 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
             # 問のテキストを設問ごとにリストでの取得
             question_texts = doc_util.get_questions(problem_doc, start= section.star_paragraph_index, end=section.end_paragraph_index)
 
+            # 非常用漢字にルビが振られていることのチェック
+            check_not_ordinary_kanji_without_ruby_results = ck.check_not_ordinary_kanji_without_ruby(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+            for error in check_not_ordinary_kanji_without_ruby_results:
+                error.section_number = section.section_number
+                problem_invalid_list.append(error)
+                
             # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
             check_keyword_exact_match_in_question_results = ck.check_keyword_exact_match_in_question(question_texts)
             errors = doc_util.set_section_at_invalid_iterms(check_keyword_exact_match_in_question_results, section_number=section.section_number)
@@ -140,6 +146,8 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 check_kanji_reading_missing_result.section_number = section.section_number
                 problem_invalid_list.append(check_kanji_reading_missing_result)
             
+
+
     return problem_invalid_list
 
 def analyze_solution_doc(solution_doc):

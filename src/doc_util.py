@@ -7,10 +7,11 @@ from lxml import etree
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 from src.entity import Section
-import src.general_util as gu
-import src.llm_util as llm
 import re
 import logging
+import src.general_util as gu
+import src.llm_util as llm
+import src.kanji as kanji
 logger = logging.getLogger(__name__)
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
@@ -763,6 +764,29 @@ def set_section_at_invalid_iterms(invalid_items:List[InvalidItem], section_numbe
         i.section_number = section_number
         results.append(i)
     return results
+
+def has_ruby(run):
+    # Run要素のXMLを取得
+    xml = run._r.xml
+    # ルビ要素の存在を確認
+    tree = etree.fromstring(xml)
+    namespace = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    ruby_elements = tree.findall(f'.//{namespace}ruby')
+    return len(ruby_elements) > 0
+
+def get_runs_with_not_ordinary_kanji_without_ruby(paragraphs:List[Paragraph]):
+    """段落から通常の漢字以外の文字を含むrunを取得する"""
+    runs_with_not_ordinary_kanji = []
+    for paragraph in paragraphs:
+        for run in paragraph.runs:
+            for char in run.text:
+                # charの文字コードが漢字の帯域ある場合は、そのrunをリストに追加
+                if 0x4E00 <= ord(char) <= 0x9FFF and char not in kanji.ORDINARY_KANJI_SET:
+                    if not has_ruby(run) :
+                        runs_with_not_ordinary_kanji.append((char, run))
+                        break
+
+    return runs_with_not_ordinary_kanji
 
 # 使用例
 if __name__ == "__main__":

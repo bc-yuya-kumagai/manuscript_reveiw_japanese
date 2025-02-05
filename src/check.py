@@ -3,7 +3,6 @@ import logging
 import re
 import src.doc_util
 from typing import List
-import src.doc_util
 import src.llm_util
 from docx import Document
 from docx.text.paragraph import Paragraph
@@ -639,3 +638,12 @@ def check_question_sentence_word_count(question_texts, answer_texts):
             problem_message += f'問題番号：{mismatch["question_no"]}、理由：{mismatch["reason"]}\n'
             
         return InvalidItem(type="指定文字数不一致", message=f'問題と解説で指定されている文字数に一致していないものがあります。[{problem_message}]')
+    
+def check_not_ordinary_kanji_without_ruby(doc:Document, start:int, end:int)->Generator[InvalidItem, None, None]:
+    """常用漢字以外の漢字にルビがついていることをチェックする"""
+    # ルビが付いている漢字のリストを取得
+    runs_with_not_ordinary_kanji = src.doc_util.get_runs_with_not_ordinary_kanji_without_ruby(doc.paragraphs[start:end+1])
+    # ルビが付いている漢字が通常の漢字かチェック
+    for kanji, parag in runs_with_not_ordinary_kanji:
+        yield InvalidItem(type="ルビの欠如", message=f"非常用漢字「{kanji}」にルビがついていません。 該当段落[{parag.text}]")
+
