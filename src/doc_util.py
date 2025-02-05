@@ -10,7 +10,8 @@ from src.entity import Section
 import src.general_util as gu
 import src.llm_util as llm
 import re
-
+import logging
+logger = logging.getLogger(__name__)
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
 # wordファイルから下線部のrunを抽出する
@@ -401,7 +402,9 @@ def is_start_section(paragraph: Paragraph) -> bool:
     """
     if len(paragraph.text.strip()) == 0:
         return False
-    return paragraph.text.strip()[0] in ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+    # 大門の開始をスタイルで判定
+    daimon_runs = [r for r in paragraph.runs if (r.text.strip() != "" ) and (r.style is not None) and (r.style.style_id == "1-20")]
+    return len(daimon_runs) > 0
 
 def is_end_section(paragraph: Paragraph) -> bool:
     """
