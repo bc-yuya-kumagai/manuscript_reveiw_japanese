@@ -56,7 +56,7 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
             for error in check_not_ordinary_kanji_without_ruby_results:
                 error.section_number = section.section_number
                 problem_invalid_list.append(error)
-                
+
             # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
             check_keyword_exact_match_in_question_results = ck.check_keyword_exact_match_in_question(question_texts)
             errors = doc_util.set_section_at_invalid_iterms(check_keyword_exact_match_in_question_results, section_number=section.section_number)
@@ -153,16 +153,19 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
 def analyze_solution_doc(solution_doc):
     invalid_list = []
     # 解説のみのチェック
-    if solution_doc:
-        # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
-        check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
-        if isinstance(check_explanation_of_questions_error, InvalidItem):
-            invalid_list["solution"].append(check_explanation_of_questions_error)
-        
-        # 記述設問の際、解説のポイントが存在しているかチェック
-        check_answer_point = ck.check_answer_contains_points(solution_doc)
-        if isinstance(check_answer_point, InvalidItem):
-            invalid_list["solution"].append(check_answer_point)
+
+    # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
+    check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
+    if isinstance(check_explanation_of_questions_error, InvalidItem):
+        invalid_list["solution"].append(check_explanation_of_questions_error)
+    
+    # 記述設問の際、解説のポイントが存在しているかチェック
+    check_answer_point = ck.check_answer_contains_points(solution_doc)
+    if isinstance(check_answer_point, InvalidItem):
+        invalid_list["solution"].append(check_answer_point)
+
+    # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
+    check_modern_translation = ck.check_modern_translation(solution_doc)
     return invalid_list
 
 def analyze_common_doc(problem_doc, solution_doc):
@@ -265,7 +268,7 @@ def delete_temp_file(file_path: str):
 
 def convert_to_html_table(data):
     html = "<table border='1'>"
-    html += "<tr><th>大門</th><th>問</th><th>エラー種別</th><th>メッセージ</th></tr>"
+    html += "<tr><th>大問</th><th>問</th><th>エラー種別</th><th>メッセージ</th></tr>"
     for problem in data["problem"]:
         html += "<tr>"
         html += f"<td>{problem.section_number}</td>"

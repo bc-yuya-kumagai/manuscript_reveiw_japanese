@@ -98,8 +98,8 @@ def extract_question_paragraphs(doc: Document, start:int, end:int) -> List[Parag
     return question_paragraphs
 
 def split_exam_2_sections(doc:Document):
-    """ docを大門ごとに分割する
-    大門の先頭は「【」で始まる
+    """ docを大問ごとに分割する
+    大問の先頭は「【」で始まる
     例: 【必答問題】この問題は全員解答してください。 
     """
     sections = []
@@ -393,24 +393,24 @@ def find_theme_font_schemas(word_file_path):
 
 def is_start_section(paragraph: Paragraph) -> bool:
     """
-    大門の開始を判定する関数。
+    大問の開始を判定する関数。
 
     Args:
         paragraph (Paragraph): python-docx の Paragraph オブジェクト。
 
     Returns:
-        bool: 大門の開始であれば True、そうでなければ False。
+        bool: 大問の開始であれば True、そうでなければ False。
     """
     if len(paragraph.text.strip()) == 0:
         return False
-    # 大門の開始をスタイルで判定
+    # 大問の開始をスタイルで判定
     daimon_runs = [r for r in paragraph.runs if (r.text.strip() != "" ) and (r.style is not None) and (r.style.style_id == "1-20")]
     return len(daimon_runs) > 0
 
 def is_end_section(paragraph: Paragraph) -> bool:
     """
-    大門の終了を判定する関数。
-    大門の終わりには特別なマーカーは存在しないので常にFalse を返す。
+    大問の終了を判定する関数。
+    大問の終わりには特別なマーカーは存在しないので常にFalse を返す。
 
     Args:
         paragraph (Paragraph): python-docx の Paragraph オブジェクト。
@@ -421,7 +421,7 @@ def is_end_section(paragraph: Paragraph) -> bool:
     return paragraph.text.strip() == "END"
 def extract_sections(doc: Document) -> List[Section]:
     """
-    文書から大門を抽出する関数。
+    文書から大問を抽出する関数。
 
     Args:
         doc (Document): python-docx の Document オブジェクト。
