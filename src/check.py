@@ -34,8 +34,8 @@ class InvalidItem:
     def __init__(self, type:str, message:str):
         self.type = type
         self.message = message
-        self.section:str = None
-        self.question_number:str = None
+        self.section_number:str = None
+        self.question_number:str = ""
 
 from typing import Generator
 
@@ -91,7 +91,7 @@ def can_construct_from_index_lists(input_list,offset:int)->List[InvalidItem]:
                 # 一致しない場合は、次のVALID_INDEX_LIST_SETのリストをチェックする
                 break
     if max_match_index == 0:
-        return [InvalidItem(type="添え字不正", message=f'添え字が不正です:{input_list[offset]}')]
+        return [InvalidItem(type="添え字不正", message=f'添え字が不正です:"{input_list[offset]}"')]
     elif offset+max_match_index == len(input_list):
         return []
     
@@ -110,16 +110,15 @@ def check_choice_index_sequence(choice_indexes):
             standard_sequence = ss
             break
     if standard_sequence is None:
-        return InvalidItem(type="選択肢不正", message=f'選択肢の添え字が規定外の文字種です:{choice_indexes}')
+        return InvalidItem(type="選択肢不正", message=f'選択肢番号に規定外の文字種があります:{choice_indexes}')
     
     for ci in choice_indexes:
         if ci == standard_sequence[offset]:
             offset += 1
-        elif offset == 0:
-            return InvalidItem(type="選択肢不正", message=f'選択肢の添え字が不正です:{ci}')
-        else:  
-            offset = 0
-
+        elif ci == standard_sequence[0]:
+            offset = 1
+        else:
+            return InvalidItem(type="選択肢不正", message=f'選択肢番号の順序が不正です:{"、".join(choice_indexes)}')
 
 
 def check_jumped_index(passage_sideLine_list) -> List[InvalidItem]:
@@ -201,7 +200,7 @@ def check_choices_mapping(question_phrases:str):
         #   選択肢内の添え字が設問文内の添え字に含まれているかをチェックする
         for choice_index in choice_indexes:
                 if choice_index not in question_indexes["choices"]:
-                    yield InvalidItem(type="設問文での選択肢不足", message=f'選択肢の一覧内の選択肢{choice_index}が設問文に存在しません')
+                        yield InvalidItem(type="設問文での選択肢不足", message=f'選択肢の一覧内の選択肢"{choice_index}"が設問文に存在しません') 
     except Exception as e:
         logger.error(f'エラー：{e}: {question_text}')  
         raise e
@@ -426,18 +425,18 @@ def check_answer_contains_points(doc:list):
                 # Exceptionを発火
                 return InvalidItem(type="フレーズ不足", message=f"{error_question}に、記述設問の場合解説のポイントが含まれていません。")
 
-def check_phrase_in_kanji_writing_question(question_texts: Document):
+def check_phrase_in_kanji_writing_question(question_texts: List[Paragraph]) -> Generator[InvalidItem, None, None]:
     """
     設問の漢字書き取り問題に指定されたフレーズが含まれているかチェックします。
 
     Args:
-        question_texts (Document): チェック対象の設問データ。
+        question_texts List[Paragraph]: 各問の文言を1要素としたList。
 
     Returns:
         InvalidItem: 指定フレーズが不足している場合のエラーメッセージを含むオブジェクト。
     """
     # 設問内の段落ごとに処理を行う
-    for paragraphs in question_texts:
+    for q_idx, paragraphs in enumerate(question_texts):
         # 各段落のテキストを改行で結合して一つの設問テキストを作成
         question_text = "\n".join(paragraph.text for paragraph in paragraphs)
         
@@ -458,7 +457,9 @@ def check_phrase_in_kanji_writing_question(question_texts: Document):
         error_text = f"「{error_text_one_line}」付近で、「（楷書ではっきり大きく書くこと。）」というフレーズが不足しています。\n"
 
         # エラー内容を含むオブジェクトを返す
-        return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+        result = InvalidItem(type="漢字書取り指示文不足", message=error_text)
+        result.question_number=q_idx+1
+        yield result
         
 def convert_kanji_number_to_int(kanji_number)->int:
     """漢数字を数値に変換する
@@ -543,7 +544,7 @@ def check_kanji_question_index_order(paragraphs: List[object]) -> None:
 
 def check_kanji_reading_missing_expressions(question_texts: Document):
     error_text = ""
-    for paragraphs in question_texts:
+    for q_index, paragraphs in enumerate(question_texts):
         question_text = ""
         for paragraph in paragraphs:
             question_text += str(paragraph.text) + "\n"
@@ -557,8 +558,9 @@ def check_kanji_reading_missing_expressions(question_texts: Document):
             error_text_one_line = error_text_one_line[:15 - 3] + "..."
         
         error_text += f"「{error_text_one_line}」付近で、「（現代仮名遣いでよい。）」というフレーズが不足しています。\n"
-
-        return InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+    
+        result_item  =  InvalidItem(type="漢字読み取り指示文不足", message=error_text)
+        result_item.question_number = q_index+1
 
 def check_question_sentence_word_count(question_texts, answer_texts):
     """問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック"""

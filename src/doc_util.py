@@ -89,7 +89,8 @@ def extract_question_paragraphs(doc: Document, start:int, end:int) -> List[Parag
     """
     question_paragraphs = []
     for paragraph in doc.paragraphs[start:end+1]:
-        if paragraph.text.startswith("問"):
+        # TODO: 問の取得条件を適切に設定する  
+        if paragraph.text.startswith("問") and not paragraph.text.startswith("問題"):
             # 「問」で始まるパラグラフをリストに追加
             question_paragraphs.append(paragraph)
     return question_paragraphs

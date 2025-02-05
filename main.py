@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Generator
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -76,26 +76,29 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 problem_invalid_list.append(result_sl_mapping)
 
             # 選択肢のチェック
-            for question in question_texts:
+            for q_idx, question in enumerate(question_texts):
                 question_text = "\n".join([q.text for q in question])
                 if ck.get_question_type(question_text) == "選択式":
-                    errors = doc_util.set_section_at_invalid_iterms(ck.check_choices_mapping(question), section_number=section.section_number)
-                    problem_invalid_list.extend(errors)
+                    for i in doc_util.set_section_at_invalid_iterms(ck.check_choices_mapping(question), section_number=section.section_number):
+                        i.question_number = q_idx + 1
+                        problem_invalid_list.append(i)
             
             # 選択肢に重複や歯抜けがないかチェック
-            for question in question_texts:
+            for q_idx, question in enumerate(question_texts):
                 question_text = "\n".join([q.text for q in question])
                 if ck.get_question_type(question_text) == "選択式":
                     error = ck.check_choices_sequence(question)
                     if isinstance(error, InvalidItem):
                         error.section_number = section.section_number
+                        error.question_number = q_idx + 1
                         problem_invalid_list.append(error)
                     
             # 「適当でないもの」がMSゴシックであるかチェック
-            for question in question_texts:
+            for q_idx, question in enumerate(question_texts):
                 result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
                 if isinstance(result_check_font_of_unfit_item, InvalidItem):
                     result_check_font_of_unfit_item.section_number = section.section_number
+                    result_check_font_of_unfit_item.question_number = q_idx + 1
                     problem_invalid_list.append(result_check_font_of_unfit_item)
 
             # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
@@ -104,7 +107,7 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 check_keyword_exact_match_in_question_statement.section_number = section.section_number
                 problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
         
-            # 文書から「問」で始まるパラグラフを抽出する
+            # 文書から「問」で始まるパラグラフを抽出する(各問の書き出しを取得する)
             extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
 
             # 「問~」がMSゴシックかチェック
@@ -125,10 +128,11 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 problem_invalid_list.append(check_exists_annotation_result)
 
             # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
-            check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
-            if isinstance(check_writing_kanji_phrase_error, InvalidItem):
-                check_writing_kanji_phrase_error.section_number = section.section_number
-                problem_invalid_list.append(check_writing_kanji_phrase_error)
+            check_writing_kanji_phrase_errors:Generator[InvalidItem] = ck.check_phrase_in_kanji_writing_question(question_texts)
+            # check_writing_kanji_phrase_errorsの各要素にsection_numberを設定してproblem_invalid_listに追加
+            for error in check_writing_kanji_phrase_errors:
+                error.section_number = section.section_number
+                problem_invalid_list.append(error)
 
             # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
             check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
