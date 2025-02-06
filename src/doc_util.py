@@ -97,20 +97,6 @@ def extract_question_paragraphs(doc: Document, start:int, end:int) -> List[Parag
             question_paragraphs.append(paragraph)
     return question_paragraphs
 
-def split_exam_2_sections(doc:Document):
-    """ docを大問ごとに分割する
-    大問の先頭は「【」で始まる
-    例: 【必答問題】この問題は全員解答してください。 
-    """
-    sections = []
-    section = []
-    for p in doc.paragraphs:
-        if p.text.startswith("【"):
-            if len(section) > 0:
-                sections.append(section)
-                section = []
-        section.append(p.text)
-    return sections
 
 def clean_sileline_list_in_page_break(list):
     """リストから改ページで発生するごみを削除する。
@@ -421,7 +407,7 @@ def is_end_section(paragraph: Paragraph) -> bool:
     return paragraph.text.strip() == "END"
 def extract_sections(doc: Document) -> List[Section]:
     """
-    文書から大問を抽出する関数。
+    問題の文書から大問を抽出する関数。
 
     Args:
         doc (Document): python-docx の Document オブジェクト。
@@ -438,7 +424,60 @@ def extract_sections(doc: Document) -> List[Section]:
         sections.append(section)
     
     return sections
+
+def is_kanjinumchar(char:str):
+    """漢数字かどうかを判定する"""
+    kanji_num_chars = ["〇","一","二","三","四","五","六","七","八","九","十","百","千"]
+    return char in kanji_num_chars
+
+def is_start_expl_section(paragraph: Paragraph) -> bool:
+    """
+    解説の大問の開始を判定する関数。
+
+    Args:
+        paragraph (Paragraph): python-docx の Paragraph オブジェクト。
+
+    Returns:
+        bool: 解説の大問の開始であれば True、そうでなければ False。
+    """
+    # 漢数字の後に、"現代文"、"古文"、"漢文"が続く場合に大問の開始と判定
+    if len(paragraph.text)> 20:
+        False
+    title_offset = paragraph.text.find("現代文")
+    if len(title_offset) == -1:
+        title_offset = paragraph.text.find("古文")
+    if len(title_offset) == -1:
+        title_offset = paragraph.text.find("漢文")
     
+    if title_offset == -1:
+        return False
+    
+    if is_kanjinumchar(paragraph.text[:title_offset].strip()[-1]):
+        return True
+
+def is_end_explsection(paragraph: Paragraph) -> bool:
+    return False
+
+def extract_explain_sections(doc: Document) -> List[Section]:
+    """
+    解説の文書から大問を抽出する関数。
+
+    Args:
+        doc (Document): python-docx の Document オブジェクト。
+
+    Returns:
+        List[Section]: 抽出されたセクションのリスト。
+    """
+    sections:List[Section] = []
+    section_intervals = gu.extract_intervals(doc.paragraphs, is_start=is_start_expl_section, is_end=is_end_explsection)
+    for interval in section_intervals:
+        section:Section = Section(section_number=interval.items[0].text[0], body_text="\n".join(p.text for p in interval.items[1:]))
+        section.star_paragraph_index = interval.start
+        section.end_paragraph_index = interval.end
+        sections.append(section)
+    
+    return sections
+
 def kanji_number_to_arabic_number(kanji_numr:str):
     """漢数字をアラビア数字に変換する"""
     # 漢数字をアラビア数字に変換
@@ -554,7 +593,7 @@ def extract_main_text_and_annotation_to_main_text(documents_list: Document) -> l
         main_text_list.append(p)
             
     return main_text_list
-def get_explanation_of_questions(doc: Document) -> List[str]:
+def get_explanation_of_questions(doc: Document,start:int, end:int) -> List[str]:
     """
     解説ドキュメントから設問の解説を抽出する。ただし、「解答・配点」に到達した時点で抽出を終了する。
     
@@ -567,7 +606,7 @@ def get_explanation_of_questions(doc: Document) -> List[str]:
     all_questions = []  # すべての設問を格納
     current_question = []  # 現在処理中の設問を格納
 
-    for p in doc.paragraphs:
+    for p in doc.paragraphs[start:end+1]:
         text = p.text.strip()
 
         # 「●設問解説」が見つかったらフラグをオン
@@ -711,7 +750,7 @@ def extract_main_text_and_annotation_to_main_text(documents_list: Document) -> l
         main_text_list.append(p)
             
     return main_text_list
-def get_explanation_of_questions(doc: Document) -> List[str]:
+def get_explanation_of_questions(doc: Document, start:int, end:int) -> List[str]:
     """
     解説ドキュメントから設問の解説を抽出する。ただし、「解答・配点」に到達した時点で抽出を終了する。
     
@@ -724,7 +763,7 @@ def get_explanation_of_questions(doc: Document) -> List[str]:
     all_questions = []  # すべての設問を格納
     current_question = []  # 現在処理中の設問を格納
 
-    for p in doc.paragraphs:
+    for p in doc.paragraphs[start:end+1]:
         text = p.text.strip()
 
         # 「●設問解説」が見つかったらフラグをオン

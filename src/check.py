@@ -238,7 +238,7 @@ def check_font_of_unfit_item(paragraphs:List[Paragraph]):
         if any(paragraph.runs[hit_index].font.name != "MS ゴシック" for hit_index in hit_indexis):
             return InvalidItem(type="フォント不正", message=f'「適当でないもの」のフォントがMSゴシックではありません')
 
-def check_explanation_of_questions_include_word(doc: Document):
+def check_explanation_of_questions_include_word(doc: Document, start:int, end:int):
     """
     解説文章の中に、「正答」以外の単語が含まれていないかをチェックします。
     
@@ -249,7 +249,7 @@ def check_explanation_of_questions_include_word(doc: Document):
         InvalidItem: 表記ゆれが検出された場合のエラー情報を返します。
     """
     # 解説文のリストを取得
-    explanation_question_list = src.doc_util.get_explanation_of_questions(doc)
+    explanation_question_list = src.doc_util.get_explanation_of_questions(doc,start,end)
     # 各解説文についてチェック
     for explanation_question_text in explanation_question_list:
         # 解説文にキーワードが含まれているかをチェック
@@ -407,9 +407,9 @@ def check_exists_annotation(doc: Document, start:int, end:int):
     elif found_count != len(annotation_sentences):
         return InvalidItem(type="傍注箇所エラー", message="本文の傍注部分で、注の説明に含まれていないものがあります。")
 
-def check_answer_contains_points(doc:list):
+def check_answer_contains_points(doc:Document,start:int,end:int):
     """記述設問の場合に、解説のポイントが含まれているかチェックする"""
-    question_explanation_list = src.doc_util.get_explanation_of_questions(doc)
+    question_explanation_list = src.doc_util.get_explanation_of_questions(doc,start,end)
             
     for question in question_explanation_list:
         
@@ -646,4 +646,12 @@ def check_not_ordinary_kanji_without_ruby(doc:Document, start:int, end:int)->Gen
     # ルビが付いている漢字が通常の漢字かチェック
     for kanji, parag in runs_with_not_ordinary_kanji:
         yield InvalidItem(type="ルビの欠如", message=f"非常用漢字「{kanji}」にルビがついていません。 該当段落[{parag.text}]")
+
+# def check_modern_translation(doc:Document, start:int end:int):
+#     """現代仮名遣いで書かれているかチェックする"""
+#     # 本文解説のブロックを取得する
+#     # 現代語訳のブロックを取得する
+#     # 本文解説のブロックから引用文リストを取得する
+#     # 現代語訳のブロックに引用文リストが含まれているかチェックする
+            
 

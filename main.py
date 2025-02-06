@@ -26,147 +26,148 @@ logger = logging.getLogger(__name__)
 
 # temp_problem_file_path, temp_solution_file_path
 def analyze_problem_doc(problem_doc, temp_problem_file_path):
-    problem_invalid_list = []
     # 問題のみのチェック
-    if problem_doc:
-        sections:List[Section] = doc_util.extract_sections(problem_doc)
-        for section in sections:
-            # 問の見出しが最初に始まる箇所を特定 <- これが、問題文と設問の境界になる
-            first_question_paragraph_index:int = doc_util.get_first_question_paragraph_index(problem_doc,start = section.star_paragraph_index, end=section.end_paragraph_index)
-            if not first_question_paragraph_index:
-                return {"errors":[{"type":"INDEX_NOT_FOUND","message":"問の見出しスタイルIDが見つかりませんでした"}]}
-            
-            # 傍線部取得（問題文の中から傍線部のrunを取得）
-            passage_side_line_runs = doc_util.get_underline_runs(problem_doc, 0, first_question_paragraph_index-1)
-
-            passage_sideLine_list = []
-            for run in passage_side_line_runs:
-                passage_sideLine_list.append( SideLine(index_text=doc_util.get_previous_text_index_run(run).text, passage=run.text))
-
-            # ページ区切り箇所にゴミが残るのでそれを削除
-            passage_sideLine_list = doc_util.clean_sileline_list_in_page_break(passage_sideLine_list)
-            # 傍線部の添え字重複チェック
-            problem_invalid_list += doc_util.set_section_at_invalid_iterms(ck.check_duplicated_index(passage_sideLine_list), section.section_number)
+    problem_invalid_list = []
+    sections:List[Section] = doc_util.extract_sections(problem_doc)
+    for section in sections:
+        # 問の見出しが最初に始まる箇所を特定 <- これが、問題文と設問の境界になる
+        first_question_paragraph_index:int = doc_util.get_first_question_paragraph_index(problem_doc,start = section.star_paragraph_index, end=section.end_paragraph_index)
+        if not first_question_paragraph_index:
+            return {"errors":[{"type":"INDEX_NOT_FOUND","message":"問の見出しスタイルIDが見つかりませんでした"}]}
         
-            # 問のテキストを設問ごとにリストでの取得
-            question_texts = doc_util.get_questions(problem_doc, start= section.star_paragraph_index, end=section.end_paragraph_index)
+        # 傍線部取得（問題文の中から傍線部のrunを取得）
+        passage_side_line_runs = doc_util.get_underline_runs(problem_doc, 0, first_question_paragraph_index-1)
 
-            # 非常用漢字にルビが振られていることのチェック
-            check_not_ordinary_kanji_without_ruby_results = ck.check_not_ordinary_kanji_without_ruby(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
-            for error in check_not_ordinary_kanji_without_ruby_results:
-                error.section_number = section.section_number
-                problem_invalid_list.append(error)
+        passage_sideLine_list = []
+        for run in passage_side_line_runs:
+            passage_sideLine_list.append( SideLine(index_text=doc_util.get_previous_text_index_run(run).text, passage=run.text))
 
-            # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
-            check_keyword_exact_match_in_question_results = ck.check_keyword_exact_match_in_question(question_texts)
-            errors = doc_util.set_section_at_invalid_iterms(check_keyword_exact_match_in_question_results, section_number=section.section_number)
-            problem_invalid_list.extend(list(errors))
+        # ページ区切り箇所にゴミが残るのでそれを削除
+        passage_sideLine_list = doc_util.clean_sileline_list_in_page_break(passage_sideLine_list)
+        # 傍線部の添え字重複チェック
+        problem_invalid_list += doc_util.set_section_at_invalid_iterms(ck.check_duplicated_index(passage_sideLine_list), section.section_number)
+    
+        # 問のテキストを設問ごとにリストでの取得
+        question_texts = doc_util.get_questions(problem_doc, start= section.star_paragraph_index, end=section.end_paragraph_index)
 
-            # 傍線部の連番飛びチェック
-            jumped = ck.check_jumped_index(passage_sideLine_list)
-            if isinstance(jumped,InvalidItem):
-                jumped.section_number = section.section_number
-                problem_invalid_list.append(jumped)
+        # 非常用漢字にルビが振られていることのチェック
+        check_not_ordinary_kanji_without_ruby_results = ck.check_not_ordinary_kanji_without_ruby(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+        for error in check_not_ordinary_kanji_without_ruby_results:
+            error.section_number = section.section_number
+            problem_invalid_list.append(error)
 
-            # 傍線部の添え字が設問内で参照されているかチェック
-            slideline_questions = list(doc_util.get_paragraph_text_by_keyword(problem_doc, "傍線部"))
-            result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
-            if isinstance(result_sl_mapping, InvalidItem):
-                result_sl_mapping.section_number = section.section_number
-                problem_invalid_list.append(result_sl_mapping)
+        # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
+        check_keyword_exact_match_in_question_results = ck.check_keyword_exact_match_in_question(question_texts)
+        errors = doc_util.set_section_at_invalid_iterms(check_keyword_exact_match_in_question_results, section_number=section.section_number)
+        problem_invalid_list.extend(list(errors))
 
-            # 設問内の添字が問題文中にあるかチェック
-            result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
-            if isinstance(result_sl_mapping, InvalidItem):
-                result_sl_mapping.section_number = section.section_number
-                problem_invalid_list.append(result_sl_mapping)
+        # 傍線部の連番飛びチェック
+        jumped = ck.check_jumped_index(passage_sideLine_list)
+        if isinstance(jumped,InvalidItem):
+            jumped.section_number = section.section_number
+            problem_invalid_list.append(jumped)
 
-            # 選択肢のチェック
-            for q_idx, question in enumerate(question_texts):
-                question_text = "\n".join([q.text for q in question])
-                if ck.get_question_type(question_text) == "選択式":
-                    for i in doc_util.set_section_at_invalid_iterms(ck.check_choices_mapping(question), section_number=section.section_number):
-                        i.question_number = q_idx + 1
-                        problem_invalid_list.append(i)
-            
-            # 選択肢に重複や歯抜けがないかチェック
-            for q_idx, question in enumerate(question_texts):
-                question_text = "\n".join([q.text for q in question])
-                if ck.get_question_type(question_text) == "選択式":
-                    error = ck.check_choices_sequence(question)
-                    if isinstance(error, InvalidItem):
-                        error.section_number = section.section_number
-                        error.question_number = q_idx + 1
-                        problem_invalid_list.append(error)
-                    
-            # 「適当でないもの」がMSゴシックであるかチェック
-            for q_idx, question in enumerate(question_texts):
-                result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
-                if isinstance(result_check_font_of_unfit_item, InvalidItem):
-                    result_check_font_of_unfit_item.section_number = section.section_number
-                    result_check_font_of_unfit_item.question_number = q_idx + 1
-                    problem_invalid_list.append(result_check_font_of_unfit_item)
+        # 傍線部の添え字が設問内で参照されているかチェック
+        slideline_questions = list(doc_util.get_paragraph_text_by_keyword(problem_doc, "傍線部"))
+        result_sl_mapping = ck.check_mapping_sileline_index_userd_in_questions(passage_sideLine_list, slideline_questions)
+        if isinstance(result_sl_mapping, InvalidItem):
+            result_sl_mapping.section_number = section.section_number
+            problem_invalid_list.append(result_sl_mapping)
 
-            # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
-            check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
-            if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
-                check_keyword_exact_match_in_question_statement.section_number = section.section_number
-                problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
+        # 設問内の添字が問題文中にあるかチェック
+        result_sl_mapping = ck.check_mapping_sileline_index_appear_in_passage(passage_sideLine_list, slideline_questions)
+        if isinstance(result_sl_mapping, InvalidItem):
+            result_sl_mapping.section_number = section.section_number
+            problem_invalid_list.append(result_sl_mapping)
+
+        # 選択肢のチェック
+        for q_idx, question in enumerate(question_texts):
+            question_text = "\n".join([q.text for q in question])
+            if ck.get_question_type(question_text) == "選択式":
+                for i in doc_util.set_section_at_invalid_iterms(ck.check_choices_mapping(question), section_number=section.section_number):
+                    i.question_number = q_idx + 1
+                    problem_invalid_list.append(i)
         
-            # 文書から「問」で始まるパラグラフを抽出する(各問の書き出しを取得する)
-            extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+        # 選択肢に重複や歯抜けがないかチェック
+        for q_idx, question in enumerate(question_texts):
+            question_text = "\n".join([q.text for q in question])
+            if ck.get_question_type(question_text) == "選択式":
+                error = ck.check_choices_sequence(question)
+                if isinstance(error, InvalidItem):
+                    error.section_number = section.section_number
+                    error.question_number = q_idx + 1
+                    problem_invalid_list.append(error)
+                
+        # 「適当でないもの」がMSゴシックであるかチェック
+        for q_idx, question in enumerate(question_texts):
+            result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
+            if isinstance(result_check_font_of_unfit_item, InvalidItem):
+                result_check_font_of_unfit_item.section_number = section.section_number
+                result_check_font_of_unfit_item.question_number = q_idx + 1
+                problem_invalid_list.append(result_check_font_of_unfit_item)
 
-            # 「問~」がMSゴシックかチェック
-            check_heading_question_font_item = ck.check_heading_question_font(temp_problem_file_path, extract_paragraphs)
-            if isinstance(check_heading_question_font_item, InvalidItem):
-                check_heading_question_font_item.section_number = section.section_number
-                problem_invalid_list.append(check_heading_question_font_item)
+        # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
+        check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
+        if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
+            check_keyword_exact_match_in_question_statement.section_number = section.section_number
+            problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
+    
+        # 文書から「問」で始まるパラグラフを抽出する(各問の書き出しを取得する)
+        extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
 
-            # 設問番号が順番通りになっているかチェック
-            check_kanji_number_orders =  doc_util.set_section_at_invalid_iterms(ck.check_kanji_question_index_order(extract_paragraphs), section_number=section.section_number)
-            for error in check_kanji_number_orders:
-                problem_invalid_list.append(error)
+        # 「問~」がMSゴシックかチェック
+        check_heading_question_font_item = ck.check_heading_question_font(temp_problem_file_path, extract_paragraphs)
+        if isinstance(check_heading_question_font_item, InvalidItem):
+            check_heading_question_font_item.section_number = section.section_number
+            problem_invalid_list.append(check_heading_question_font_item)
 
-            #傍注の説明の内容が本文に入っているかチェック
-            check_exists_annotation_result = ck.check_exists_annotation(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
-            if isinstance(check_exists_annotation_result, InvalidItem):
-                check_exists_annotation_result.section_number = section.section_number
-                problem_invalid_list.append(check_exists_annotation_result)
+        # 設問番号が順番通りになっているかチェック
+        check_kanji_number_orders =  doc_util.set_section_at_invalid_iterms(ck.check_kanji_question_index_order(extract_paragraphs), section_number=section.section_number)
+        for error in check_kanji_number_orders:
+            problem_invalid_list.append(error)
 
-            # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
-            check_writing_kanji_phrase_errors:Generator[InvalidItem] = ck.check_phrase_in_kanji_writing_question(question_texts)
-            # check_writing_kanji_phrase_errorsの各要素にsection_numberを設定してproblem_invalid_listに追加
-            for error in check_writing_kanji_phrase_errors:
-                error.section_number = section.section_number
-                problem_invalid_list.append(error)
+        #傍注の説明の内容が本文に入っているかチェック
+        check_exists_annotation_result = ck.check_exists_annotation(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+        if isinstance(check_exists_annotation_result, InvalidItem):
+            check_exists_annotation_result.section_number = section.section_number
+            problem_invalid_list.append(check_exists_annotation_result)
 
-            # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
-            check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
-            if isinstance(check_kanji_reading_missing_result, InvalidItem):
-                check_kanji_reading_missing_result.section_number = section.section_number
-                problem_invalid_list.append(check_kanji_reading_missing_result)
+        # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
+        check_writing_kanji_phrase_errors:Generator[InvalidItem] = ck.check_phrase_in_kanji_writing_question(question_texts)
+        # check_writing_kanji_phrase_errorsの各要素にsection_numberを設定してproblem_invalid_listに追加
+        for error in check_writing_kanji_phrase_errors:
+            error.section_number = section.section_number
+            problem_invalid_list.append(error)
+
+        # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
+        check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
+        if isinstance(check_kanji_reading_missing_result, InvalidItem):
+            check_kanji_reading_missing_result.section_number = section.section_number
+            problem_invalid_list.append(check_kanji_reading_missing_result)
             
 
 
     return problem_invalid_list
 
 def analyze_solution_doc(solution_doc):
-    invalid_list = []
-    # 解説のみのチェック
+    explain_invalid_list = []
+    sections = doc_util.extract_explain_sections(solution_doc)
+    for section in sections:
+        # 解説のみのチェック
 
-    # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
-    check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
-    if isinstance(check_explanation_of_questions_error, InvalidItem):
-        invalid_list["solution"].append(check_explanation_of_questions_error)
-    
-    # 記述設問の際、解説のポイントが存在しているかチェック
-    check_answer_point = ck.check_answer_contains_points(solution_doc)
-    if isinstance(check_answer_point, InvalidItem):
-        invalid_list["solution"].append(check_answer_point)
+        # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
+        check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+        if isinstance(check_explanation_of_questions_error, InvalidItem):
+            explain_invalid_list.append(check_explanation_of_questions_error)
+        
+        # 記述設問の際、解説のポイントが存在しているかチェック
+        check_answer_point = ck.check_answer_contains_points(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+        if isinstance(check_answer_point, InvalidItem):
+            explain_invalid_list.append(check_answer_point)
 
-    # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
-    check_modern_translation = ck.check_modern_translation(solution_doc)
-    return invalid_list
+        # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
+        check_modern_translation = ck.check_modern_translation(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+    return explain_invalid_list
 
 def analyze_common_doc(problem_doc, solution_doc):
     invalid_list = []
