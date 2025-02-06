@@ -163,7 +163,7 @@ def analyze_solution_doc(solution_doc):
         # 記述設問の際、解説のポイントが存在しているかチェック
         check_answer_point = ck.check_answer_contains_points(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
         if isinstance(check_answer_point, InvalidItem):
-            check_answer_point.
+            check_answer_point.section_number = section.section_number
             explain_invalid_list.append(check_answer_point)
 
         # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
@@ -412,6 +412,12 @@ def convert_to_html_table(data):
             </tbody>
         </table>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    """
+    ## トップページに戻るボタン
+    html += """
+    <div class="container text-center mt-5">
+        <a href="/" class="btn btn-primary mt-4">トップページに戻る</a> 
+    </div>
     """
     return html
 
