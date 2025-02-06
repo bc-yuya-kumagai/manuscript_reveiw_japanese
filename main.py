@@ -117,9 +117,8 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
 
         # 「問~」がMSゴシックかチェック
         check_heading_question_font_item = ck.check_heading_question_font(temp_problem_file_path, extract_paragraphs)
-        if isinstance(check_heading_question_font_item, InvalidItem):
-            check_heading_question_font_item.section_number = section.section_number
-            problem_invalid_list.append(check_heading_question_font_item)
+        errors = doc_util.set_section_at_invalid_iterms(check_heading_question_font_item, section_number=section.section_number)
+        problem_invalid_list.extend(list(errors))
 
         # 設問番号が順番通りになっているかチェック
         check_kanji_number_orders =  doc_util.set_section_at_invalid_iterms(ck.check_kanji_question_index_order(extract_paragraphs), section_number=section.section_number)
