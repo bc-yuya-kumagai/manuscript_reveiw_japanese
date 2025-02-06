@@ -471,6 +471,8 @@ def is_start_expl_section(paragraph: Paragraph) -> bool:
 def is_end_explsection(paragraph: Paragraph) -> bool:
     return False
 
+# 点数取得の正規表現パターン（xx点）からxxを取得する
+score_pattern = re.compile(r"(\d+)点")
 def extract_explain_sections(doc: Document) -> List[Section]:
     """
     解説の文書から大問を抽出する関数。
@@ -500,6 +502,11 @@ def extract_explain_sections(doc: Document) -> List[Section]:
         section.exam_category = exam_category
         section.star_paragraph_index = interval.start
         section.end_paragraph_index = interval.end
+
+        # 解説の大問のスコアを取得 interval.items[0].textからスコアを取得
+        score_match = score_pattern.search(interval.items[0].text)
+        section.score = int(score_match.group(1)) if score_match else 0
+        
         sections.append(section)
     
     return sections
@@ -865,6 +872,8 @@ class ExplanationBlockType(Enum):
     MODERN_TRANSLATION = 3
     # 書き下し文
     TRANSCRIBED_TEXT = 4
+    # 解答・配点
+    ANSWER_AND_SCORE = 5
 
 
 class SolutionBlock:
@@ -874,7 +883,7 @@ class SolutionBlock:
 
 def has_sepl_block_mark(paragraph:Paragraph):
     """解説ブロックの開始マークを含むかどうかを判定する"""
-    return paragraph.text.strip() in ["●本文解説", "●設問解説", "●現代語訳", "●書き下し文"]
+    return paragraph.text.strip() in ["解答・配点","●本文解説", "●設問解説", "●現代語訳", "●書き下し文"]
 
 def get_explanation_blocks(paragraphs, star, end)->List[SolutionBlock]:
     """大問単位から、本文解説ブロックのテキストを取得する"""
@@ -889,6 +898,8 @@ def get_explanation_blocks(paragraphs, star, end)->List[SolutionBlock]:
             blocks.append(SolutionBlock(ExplanationBlockType.MODERN_TRANSLATION, "\n".join(p.text for p in interval.items[1:])))
         elif interval.items[0].text.strip() == "●書き下し文":
             blocks.append(SolutionBlock(ExplanationBlockType.TRANSCRIBED_TEXT, "\n".join(p.text for p in interval.items[1:])))
+        elif interval.items[0].text.strip() == "解答・配点":
+            blocks.append(SolutionBlock(ExplanationBlockType.ANSWER_AND_SCORE, "\n".join(p.text for p in interval.items[1:])))
     return blocks
         
 

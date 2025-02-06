@@ -46,3 +46,17 @@ def extract_intervals(
     if stack:
         intervals.append(Interval(stack.pop(), start, len(data)))
     return intervals
+
+# 変換テーブルを作成
+zenkaku2hankaku_table = str.maketrans({
+    '０': '0',
+    '１': '1',
+    '２': '2',
+    '３': '3',
+    '４': '4',
+    '５': '5',
+    '６': '6',
+    '７': '7',
+    '８': '8',
+    '９': '9',
+})

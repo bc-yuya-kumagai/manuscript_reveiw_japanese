@@ -396,7 +396,7 @@ def check_exists_annotation(doc: Document, start:int, end:int):
         return InvalidItem(type="傍注箇所エラー", message="本文の傍注部分で、注の説明に含まれていないものがあります。")
 
 def check_answer_contains_points(doc:Document,start:int,end:int):
-    """記述設問の場合に、解説のポイントが含まれているかチェックする"""
+    """記述設問の場合に、解答のポイントが含まれているかチェックする"""
     question_explanation_list = src.doc_util.get_explanation_of_questions(doc,start,end)
             
     for question in question_explanation_list:
@@ -410,7 +410,7 @@ def check_answer_contains_points(doc:Document,start:int,end:int):
                 else:
                     error_question = question
                 # Exceptionを発火
-                return InvalidItem(type="解説のポイントなし", message=f"{error_question}に、記述設問にて解説のポイントが含まれていません。")
+                return InvalidItem(type="解答のポイントなし", message=f"{error_question}に、記述設問にて解答のポイントが含まれていません。")
 
 def check_phrase_in_kanji_writing_question(question_texts: List[Paragraph]) -> Generator[InvalidItem, None, None]:
     """
@@ -660,3 +660,19 @@ def check_main_text_modern_translation_mapping(doc:Document, start:int, end:int)
     # 現代語訳のブロックに引用文リストが含まれているかチェックする
     return retults
 
+
+def check_explain_score(section_score:int, doc:Document, start:int, end:int)->InvalidItem:
+    """解説の配点が正しいかチェックする"""
+    explain_blocks:List[src.doc_util.SolutionBlock] = src.doc_util.get_explanation_blocks(doc.paragraphs,start,end+1)
+    anser_score_bolock:src.doc_util.SolutionBlock = [block for block in explain_blocks if block.block_type == src.doc_util.ExplanationBlockType.ANSWER_AND_SCORE][0]
+    # 全角を半角に変換
+    han_text = anser_score_bolock.text.translate(gu.zenkaku2hankaku_table)
+    matches = src.doc_util.score_pattern.findall(han_text)
+    if not matches:
+        return InvalidItem(type="解説の配点不正", message="解説の配点が正しくありません")
+    # matchesの中から配点を複数取得して合計する
+    score_list = [int(m) for m in matches]
+    question_score = sum(score_list)
+    if question_score != section_score:
+        scores= "点、".join([str(s) for s in score_list])+ "点"
+        return InvalidItem(type="解説の配点不正", message=f"大問の配点 [{section_score}点]と小問配点[{scores}]の合計 [{question_score}点]が一致しません")

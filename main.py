@@ -148,7 +148,7 @@ def analyze_solution_doc(solution_doc):
     sections = doc_util.extract_explain_sections(solution_doc)
     for section in sections:
         # 解説のみのチェック
-        logger.info(f"解説大問:{section.section_number}")
+        logger.info(f"解説大問:{section.section_number} 配点:{section.score}")
         # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
         check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
         if isinstance(check_explanation_of_questions_error, InvalidItem):
@@ -167,7 +167,12 @@ def analyze_solution_doc(solution_doc):
             for item in invalid_items:
                 item.section_number = section.section_number
                 explain_invalid_list.append(item)
-
+        
+        # 配点のチェック大問の配点が小問の合計になるかチェック
+        check_score_result = ck.check_explain_score(section_score=section.score, doc=solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+        if isinstance(check_score_result, InvalidItem):
+            check_score_result.section_number = section.section_number
+            explain_invalid_list.append(check_score_result)
     return explain_invalid_list
 
 def analyze_common_doc(problem_doc, solution_doc):
