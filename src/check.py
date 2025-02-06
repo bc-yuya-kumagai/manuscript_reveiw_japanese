@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 # 大問の点数を取得する正規表現
 
 
+# 問の漢数字パターン
+kanji_question_pattern = re.compile(r"問([一二三四五六七八九十]+)")
 
 class SideLine:
     def __init__(self, index_text:str, passage:str):
@@ -288,7 +290,7 @@ def check_keyword_exact_match_in_question(paragraphs_lists:List[Paragraph]):
 
     # 出力結果
     for q_index , combined in enumerate(combined_questions, start=1):
-        result = json.loads(src.llm_util.check_tekitou_exact_match_in_question_statement(combined)["choices"][0]["message"]["content"])        
+        result = json.loads(src.llm_util.check_tekitou_exact_match_in_question_statement(combined)["choices"][0]["message"]["content"])  
         if result["is_evaluated"] is True and result["is_exact_match"] is False:
             invalid_item = InvalidItem(type="表記ルールエラー", message=f'問{q_index}に「適当」が正しく使用されていません [{result["incorrect_usages"]}]')
             invalid_item.question_number = q_index
@@ -299,33 +301,18 @@ def check_heading_question_font(docx_file_path:str ,paragraphs:List[Paragraph]):
     """「問~」がMSゴシックかチェック
     """
     for paragraph in paragraphs:
-        buffer = src.doc_util.font_analyzer(docx_file_path, paragraph)  # 段落内のテキスト情報を一時的に保持する
-        question_no = None  # 検出した「問〇」の番号を格納する変数
+        # 段落内のテキスト情報を取得（フォント情報付き）
+        text_font_info = src.doc_util.font_analyzer(docx_file_path, paragraph)  
 
-        # 段落全体のテキストを結合
-        combined_text = "".join([content["text"] for content in buffer])
-
-        kanji_numbers = [
-            "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
-            "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"
-        ][::-1]
-
-        # 「問〇」の形式を検出
-        for kanji in kanji_numbers:
-            keyword = f"問{kanji}"
-            if keyword in combined_text:
-                question_no = keyword
-                break
-
-        # 判定
-        if question_no is not None:
-            buffer_question_no = ""
-            for content in buffer:
-                if buffer_question_no == keyword:
-                    break
-                if "ＭＳ ゴシック" != content["font"] and "MS Gothic" != content["font"]:
-                    return InvalidItem(type="フォント不正", message=f'「{question_no}」のフォントがMSゴシックではありません')
-                buffer_question_no += content["text"]
+        for info in text_font_info:
+            # 問[漢数字]のテキストかチェック
+            match = kanji_question_pattern.match(info["text"])
+            if match:
+                if info["font"] not in ["ＭＳ ゴシック", "MS Gothic", "MS ゴシック"]:
+                    invalid_item = InvalidItem(type="フォント不正", message=f'フォントがMSゴシックではなく「{info["font"]}」になっています。')
+                    # 問の番号を取得
+                    invalid_item.question_number = src.doc_util.kanji_number_to_arabic_number(match.group(1))
+                    yield invalid_item
 
 def check_part_question_score(question_doc:Document, answer_doc:Document):
     
@@ -505,8 +492,6 @@ def check_number_order(numbers:List[int], kanji_index:List[str]) -> None:
         if numbers[i] != numbers[i-1] + 1:
             yield InvalidItem(type="問の番号不正", message=f"問題番号が連番になっていません: {kanji_index[i-1]}の次に{kanji_index[i]}があります")
 
-# 問の漢数字パターン
-kanji_question_pattern = re.compile(r"問([一二三四五六七八九十]+)")
 
 def check_kanji_question_index_order(paragraphs: List[object]) -> None:
     """段落が「問[漢数字]」で始まり、順番通りになっているかチェック"""
