@@ -46,3 +46,4 @@ class Section(BaseModel):
     notes: Optional[List[Note]] = []
     star_paragraph_index: Optional[int] = None
     end_paragraph_index: Optional[int] = None
+    exam_category: Optional[str] = None

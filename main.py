@@ -143,11 +143,12 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
     return problem_invalid_list
 
 def analyze_solution_doc(solution_doc):
+    logger.info("解説チェック")
     explain_invalid_list = []
     sections = doc_util.extract_explain_sections(solution_doc)
     for section in sections:
         # 解説のみのチェック
-
+        logger.info(f"解説大問:{section.section_number}")
         # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
         check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
         if isinstance(check_explanation_of_questions_error, InvalidItem):
@@ -159,8 +160,14 @@ def analyze_solution_doc(solution_doc):
             check_answer_point.section_number = section.section_number
             explain_invalid_list.append(check_answer_point)
 
+        # 古文漢文の問題なのかチェック  
         # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
-#        check_modern_translation = ck.check_modern_translation(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+        if section.exam_category in ["古文","漢文"]:
+            invalid_items = ck.check_main_text_modern_translation_mapping(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+            for item in invalid_items:
+                item.section_number = section.section_number
+                explain_invalid_list.append(item)
+
     return explain_invalid_list
 
 def analyze_common_doc(problem_doc, solution_doc):

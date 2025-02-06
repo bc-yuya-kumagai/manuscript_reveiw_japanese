@@ -404,7 +404,18 @@ def is_end_section(paragraph: Paragraph) -> bool:
     Returns:
         bool: False 固定。
     """
-    return paragraph.text.strip() == "END"
+    return False
+
+def get_section_number(first_text:str) -> str:
+    # first_text]に含まれる漢数字の連続を抽出
+    kanji_num = ""
+    for char in first_text:
+        if is_kanjinumchar(char):
+            kanji_num += char
+        else:
+            continue
+    return kanji_num
+
 def extract_sections(doc: Document) -> List[Section]:
     """
     問題の文書から大問を抽出する関数。
@@ -417,8 +428,10 @@ def extract_sections(doc: Document) -> List[Section]:
     """
     sections:List[Section] = []
     section_intervals = gu.extract_intervals(doc.paragraphs, is_start=is_start_section, is_end=is_end_section)
+    
     for interval in section_intervals:
-        section:Section = Section(section_number=interval.items[0].text[0], body_text="\n".join(p.text for p in interval.items[1:]))
+
+        section:Section = Section(section_number=get_section_number(interval.items[0].text), body_text="\n".join(p.text for p in interval.items[1:]))
         section.star_paragraph_index = interval.start
         section.end_paragraph_index = interval.end
         sections.append(section)
@@ -471,7 +484,20 @@ def extract_explain_sections(doc: Document) -> List[Section]:
     sections:List[Section] = []
     section_intervals = gu.extract_intervals(doc.paragraphs, is_start=is_start_expl_section, is_end=is_end_explsection)
     for interval in section_intervals:
-        section:Section = Section(section_number=interval.items[0].text[0], body_text="\n".join(p.text for p in interval.items[1:]))
+
+        # 試験の種別を格納
+        exam_category =""
+        if "現代文" in interval.items[0].text:
+            exam_category = "現代文"
+        elif "古文" in interval.items[0].text:
+            exam_category = "古文"
+        elif "漢文" in interval.items[0].text:
+            exam_category = "漢文"
+        else:
+            exam_category = "その他"
+
+        section:Section = Section(section_number=get_section_number(interval.items[0].text), body_text="\n".join(p.text for p in interval.items[1:]))
+        section.exam_category = exam_category
         section.star_paragraph_index = interval.start
         section.end_paragraph_index = interval.end
         sections.append(section)
@@ -826,6 +852,46 @@ def get_runs_with_not_ordinary_kanji_without_ruby(paragraphs:List[Paragraph]):
                         break
 
     return runs_with_not_ordinary_kanji
+
+from enum import Enum
+
+# 解説ブロックの種別をenumで定義
+class ExplanationBlockType(Enum):
+    # 本文解説
+    MAIN_TEXT_EXPLANATION = 1
+    # 設問解説
+    QUESTION_EXPLANATION = 2
+    # 現代語訳
+    MODERN_TRANSLATION = 3
+    # 書き下し文
+    TRANSCRIBED_TEXT = 4
+
+
+class SolutionBlock:
+    def __init__(self, block_type:ExplanationBlockType, text:str):
+        self.block_type = block_type
+        self.text = text
+
+def has_sepl_block_mark(paragraph:Paragraph):
+    """解説ブロックの開始マークを含むかどうかを判定する"""
+    return paragraph.text.strip() in ["●本文解説", "●設問解説", "●現代語訳", "●書き下し文"]
+
+def get_explanation_blocks(paragraphs, star, end)->List[SolutionBlock]:
+    """大問単位から、本文解説ブロックのテキストを取得する"""
+    intervals = gu.extract_intervals( paragraphs[star:end+1], is_start=has_sepl_block_mark, is_end=has_sepl_block_mark)
+    blocks:List[SolutionBlock] = []
+    for interval in intervals:
+        if interval.items[0].text.strip() == "●本文解説":
+            blocks.append(SolutionBlock(ExplanationBlockType.MAIN_TEXT_EXPLANATION, "\n".join(p.text for p in interval.items[1:])))
+        elif interval.items[0].text.strip() == "●設問解説":
+            blocks.append(SolutionBlock(ExplanationBlockType.QUESTION_EXPLANATION, "\n".join(p.text for p in interval.items[1:])))
+        elif interval.items[0].text.strip() == "●現代語訳":
+            blocks.append(SolutionBlock(ExplanationBlockType.MODERN_TRANSLATION, "\n".join(p.text for p in interval.items[1:])))
+        elif interval.items[0].text.strip() == "●書き下し文":
+            blocks.append(SolutionBlock(ExplanationBlockType.TRANSCRIBED_TEXT, "\n".join(p.text for p in interval.items[1:])))
+    return blocks
+        
+
 
 # 使用例
 if __name__ == "__main__":

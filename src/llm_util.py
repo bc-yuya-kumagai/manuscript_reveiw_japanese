@@ -48,7 +48,84 @@ def qreate_task__payload(task_text:str, user_text:str):
     payload["messages"][1]["content"] = user_text.replace("　", "  ")
     return payload
 
+def get_quotes_from_main_text_explain_block(main_text:str) ->List[str]:
+    task_text = """	あなたは校正担当者です。国語の試験問題の解説文から、古語とその現代語訳のペアを抽出してください。
+	【抽出条件】
+		1. 解説文中に出現する古語表現と、それに対応する現代語訳を抽出する。
+		2. 現代語訳が「「」」で囲まれている場合はもちろん、囲みがなくても文脈上明確に現代語訳が示されている場合も対象とする。
+		3. 出力は各ペアをオブジェクトとし、キー "古語" と "現代訳" を持つ JSON 形式の配列で回答する。
+		
+		4. 「」で囲まれたものについては・などの併記のための記号も含めて出力して下さい
+		
+	【出力例】
+	（以下、上記 few-shot 例1 と例2 のような形式に基づく出力例を参照）
+	
+【few-shot 例1】
+【解説文】
+「問一　解釈（現代語訳）に関する選択肢設問。
+ⓐ　「うちつけにゆかしう思せば」を単語に分けると「うちつけに／ゆかしう／思せ／ば」となる。
+　　「うちつけに」は、事が突然に起こり心に大きな衝撃を受けるような様子を表す形容動詞「うちつけなり」の連用形で、「にわかに・突然・だしぬけに」などと訳す。
+　　「ゆかしう」は、「く」という動詞をもととする形容詞「ゆかし」の連用形で、ついそちらへ引き寄せられて行きそうな様子として、「見たい・聞きたい・知りたい・心引かれる」などと訳す。
+　　「思せ」は、サ行四段活用の動詞「思す」の尊敬語で、「お思いになる・思いなさる」と訳す。
+　　「ば」は順接を表す接続助詞で、ここでは「ので」などと訳す。
+【抽出対象となる古語と現代語訳のペア】
+以下の各古語と、その現代語訳（囲みの有無にかかわらず、文脈上明確な場合は対象とする）を抽出する。
+【出力例】
 
+"{result"=[
+  {
+    "古語": "うちつけに",
+    "現代訳": "にわかに・突然・だしぬけに"
+  },
+  {
+    "古語": "ゆかしう",
+    "現代訳": "見たい・聞きたい・知りたい・心引かれる"
+  },
+  {
+    "古語": "思せ",
+    "現代訳": "お思いになる・思いなさる"
+  },
+  {
+    "古語": "ば",
+    "現代訳": "ので"
+  }
+]}
+
+【few-shot 例2】
+
+【解説文】
+「問五　内容理解に関する記述設問。
+傍線部(ｳ)「泣きみ笑ひみ」は「泣いたり笑ったりしつつ」の意。
+※ここでは、文脈上「泣いたり笑ったりしつつ」が古語「泣きみ笑ひみ」の現代語訳として明確に説明されているものとする。」
+
+【抽出対象となる古語と現代語訳のペア】
+{"result"=[
+  {
+    "古語": "泣きみ笑ひみ",
+    "現代訳": "泣いたり笑ったりしつつ"
+  }
+]}
+
+    """
+
+    # payloadを作成
+    payload = qreate_task__payload(task_text, main_text) 
+    try:
+        # リクエストを送信
+        response = requests.request("POST", url, json=payload, headers=headers, params=querystring)
+        if response.status_code != 200:
+            logger.error(f"response[{response.json()}]")
+            raise Exception(f"response[{response.json()}]")
+        # レスポンスからcontentの文字列を取得
+        response_content = response.json()['choices'][0]['message']['content']
+        # contentをJSONとしてパースしてPythonのリストに変換
+        parsed_content = json.loads(response_content)
+
+        return parsed_content
+    except Exception as e:
+        logger.error(f"response[{response.json()}]")
+        raise e
+    
 def get_text_indexes_from_question(question_text:str):
     task_text = """テストの設問文が与えられますので、あなたはその文中から、本文にあると推測される傍線部の添え字をすべてピックアップしてください。
     解答に際してはJSON形式の配列を回答してください["1", "2","3"]

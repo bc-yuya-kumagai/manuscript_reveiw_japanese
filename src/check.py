@@ -9,6 +9,7 @@ from docx.text.paragraph import Paragraph
 import json
 import jaconv
 from docx import Document
+import src.general_util as gu
 # Configure logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -632,11 +633,30 @@ def check_not_ordinary_kanji_without_ruby(doc:Document, start:int, end:int)->Gen
     for kanji, parag in runs_with_not_ordinary_kanji:
         yield InvalidItem(type="ルビの欠如", message=f"非常用漢字「{kanji}」にルビがついていません。 該当段落[{parag.text}]")
 
-# def check_modern_translation(doc:Document, start:int end:int):
-#     """現代仮名遣いで書かれているかチェックする"""
-#     # 本文解説のブロックを取得する
-#     # 現代語訳のブロックを取得する
-#     # 本文解説のブロックから引用文リストを取得する
-#     # 現代語訳のブロックに引用文リストが含まれているかチェックする
-            
+def check_main_text_modern_translation_mapping(doc:Document, start:int, end:int)->List[InvalidItem]:
+    retults = []
+    """ 本文解説の現代語訳の箇所が同じ文言で現代語訳の中に含まれていることをチェックする"""
+    # 説のブロックを取得する
+    explain_blocks:List[src.doc_util.SolutionBlock] = src.doc_util.get_explanation_blocks(doc.paragraphs,start,end+1)
+
+    # explain_blocksから本文解説の箇所を取得する
+    main_text_block          = [block for block in explain_blocks if block.block_type == src.doc_util.ExplanationBlockType.QUESTION_EXPLANATION]
+    if not main_text_block:
+        return InvalidItem(type="設問解説なし", message="設問解説がありません。")
+    # explain_blocksから現代語訳の箇所を取得する
+    modern_translation_block = [block for block in explain_blocks if block.block_type == src.doc_util.ExplanationBlockType.MODERN_TRANSLATION]
+    if not modern_translation_block:
+        return InvalidItem(type="現代語訳なし", message="現代語訳がありません。")
+    
+    # 本文解説のブロックから引用文リストを取得する
+    main_text_quotes = src.llm_util.get_quotes_from_main_text_explain_block(main_text_block[0].text)
+
+    logger.info(f"本文解説の引用文リスト: {main_text_quotes}")
+    modern_text = modern_translation_block[0].text
+    for trans_sentence in main_text_quotes["result"]:
+         contained_phrases = [t for t in trans_sentence["現代訳"].split("・")  if trans_sentence["現代訳"] in modern_text]
+         if len(contained_phrases)==0:
+                retults.append(InvalidItem(type="現代語訳不一致", message=f'古語「{trans_sentence["古語"]}」に対応する現代語「{trans_sentence["現代訳"]}」が現代語訳セクションの中に出現しません。'))
+    # 現代語訳のブロックに引用文リストが含まれているかチェックする
+    return retults
 
