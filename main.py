@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Generator
 from fastapi import FastAPI, UploadFile, File, HTTPException, status
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +51,12 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
             # 問のテキストを設問ごとにリストでの取得
             question_texts = doc_util.get_questions(problem_doc, start= section.star_paragraph_index, end=section.end_paragraph_index)
 
+            # 非常用漢字にルビが振られていることのチェック
+            check_not_ordinary_kanji_without_ruby_results = ck.check_not_ordinary_kanji_without_ruby(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+            for error in check_not_ordinary_kanji_without_ruby_results:
+                error.section_number = section.section_number
+                problem_invalid_list.append(error)
+
             # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
             check_keyword_exact_match_in_question_results = ck.check_keyword_exact_match_in_question(question_texts)
             errors = doc_util.set_section_at_invalid_iterms(check_keyword_exact_match_in_question_results, section_number=section.section_number)
@@ -76,26 +82,29 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 problem_invalid_list.append(result_sl_mapping)
 
             # 選択肢のチェック
-            for question in question_texts:
+            for q_idx, question in enumerate(question_texts):
                 question_text = "\n".join([q.text for q in question])
                 if ck.get_question_type(question_text) == "選択式":
-                    errors = doc_util.set_section_at_invalid_iterms(ck.check_choices_mapping(question), section_number=section.section_number)
-                    problem_invalid_list.extend(errors)
+                    for i in doc_util.set_section_at_invalid_iterms(ck.check_choices_mapping(question), section_number=section.section_number):
+                        i.question_number = q_idx + 1
+                        problem_invalid_list.append(i)
             
             # 選択肢に重複や歯抜けがないかチェック
-            for question in question_texts:
+            for q_idx, question in enumerate(question_texts):
                 question_text = "\n".join([q.text for q in question])
                 if ck.get_question_type(question_text) == "選択式":
                     error = ck.check_choices_sequence(question)
                     if isinstance(error, InvalidItem):
                         error.section_number = section.section_number
+                        error.question_number = q_idx + 1
                         problem_invalid_list.append(error)
                     
             # 「適当でないもの」がMSゴシックであるかチェック
-            for question in question_texts:
+            for q_idx, question in enumerate(question_texts):
                 result_check_font_of_unfit_item = ck.check_font_of_unfit_item(question)
                 if isinstance(result_check_font_of_unfit_item, InvalidItem):
                     result_check_font_of_unfit_item.section_number = section.section_number
+                    result_check_font_of_unfit_item.question_number = q_idx + 1
                     problem_invalid_list.append(result_check_font_of_unfit_item)
 
             # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
@@ -104,7 +113,7 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 check_keyword_exact_match_in_question_statement.section_number = section.section_number
                 problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
         
-            # 文書から「問」で始まるパラグラフを抽出する
+            # 文書から「問」で始まるパラグラフを抽出する(各問の書き出しを取得する)
             extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
 
             # 「問~」がMSゴシックかチェック
@@ -125,10 +134,11 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 problem_invalid_list.append(check_exists_annotation_result)
 
             # 設問の漢字書き取り問題に指定されたフレーズが含まれているかチェック
-            check_writing_kanji_phrase_error = ck.check_phrase_in_kanji_writing_question(question_texts)
-            if isinstance(check_writing_kanji_phrase_error, InvalidItem):
-                check_writing_kanji_phrase_error.section_number = section.section_number
-                problem_invalid_list.append(check_writing_kanji_phrase_error)
+            check_writing_kanji_phrase_errors:Generator[InvalidItem] = ck.check_phrase_in_kanji_writing_question(question_texts)
+            # check_writing_kanji_phrase_errorsの各要素にsection_numberを設定してproblem_invalid_listに追加
+            for error in check_writing_kanji_phrase_errors:
+                error.section_number = section.section_number
+                problem_invalid_list.append(error)
 
             # 漢字読み取り問題時に、「（現代仮名遣いでよい。）」というフレーズが使われているかチェック
             check_kanji_reading_missing_result = ck.check_kanji_reading_missing_expressions(question_texts)
@@ -136,21 +146,26 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 check_kanji_reading_missing_result.section_number = section.section_number
                 problem_invalid_list.append(check_kanji_reading_missing_result)
             
+
+
     return problem_invalid_list
 
 def analyze_solution_doc(solution_doc):
     invalid_list = []
     # 解説のみのチェック
-    if solution_doc:
-        # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
-        check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
-        if isinstance(check_explanation_of_questions_error, InvalidItem):
-            invalid_list["solution"].append(check_explanation_of_questions_error)
-        
-        # 記述設問の際、解説のポイントが存在しているかチェック
-        check_answer_point = ck.check_answer_contains_points(solution_doc)
-        if isinstance(check_answer_point, InvalidItem):
-            invalid_list["solution"].append(check_answer_point)
+
+    # 解説中に正答番号を指すものに対して、正答というフレーズが正しく使用されているか確認する。
+    check_explanation_of_questions_error = ck.check_explanation_of_questions_include_word(solution_doc)
+    if isinstance(check_explanation_of_questions_error, InvalidItem):
+        invalid_list["solution"].append(check_explanation_of_questions_error)
+    
+    # 記述設問の際、解説のポイントが存在しているかチェック
+    check_answer_point = ck.check_answer_contains_points(solution_doc)
+    if isinstance(check_answer_point, InvalidItem):
+        invalid_list["solution"].append(check_answer_point)
+
+    # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
+    check_modern_translation = ck.check_modern_translation(solution_doc)
     return invalid_list
 
 def analyze_common_doc(problem_doc, solution_doc):
@@ -303,6 +318,7 @@ def delete_temp_file(file_path: str):
         logger.error(f"Error deleting file {file_path}: {e}")
 
 def convert_to_html_table(data):
+
     html = """
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <table class="table table-bordered table-striped table-hover">

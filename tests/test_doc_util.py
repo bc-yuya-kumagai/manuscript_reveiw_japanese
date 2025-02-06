@@ -21,18 +21,18 @@ class TestDocUtil(unittest.TestCase):
     def setUp(self):
         # テスト用のドキュメントを作成
         self.doc = Document()
-        self.doc.add_paragraph("一 大門1")
-        self.doc.add_paragraph("これは大門1の内容です。")
-        self.doc.add_paragraph("二 大門2")
-        self.doc.add_paragraph("これは大門2の内容です。")
+        self.doc.add_paragraph("一 大問1")
+        self.doc.add_paragraph("これは大問1の内容です。")
+        self.doc.add_paragraph("二 大問2")
+        self.doc.add_paragraph("これは大問2の内容です。")
 
     def test_extract_sections(self):
         sections = extract_sections(self.doc)
         self.assertEqual(len(sections), 2)
         self.assertEqual(sections[0].section_number, "一")
-        self.assertEqual(sections[0].body_text, "これは大門1の内容です。")
+        self.assertEqual(sections[0].body_text, "これは大問1の内容です。")
         self.assertEqual(sections[1].section_number, "二")
-        self.assertEqual(sections[1].body_text, "これは大門2の内容です。")
+        self.assertEqual(sections[1].body_text, "これは大問2の内容です。")
     
     def test_extract_sections_from_docx(self):
         doc = Document(SAMPLE_DOCX_PATH)

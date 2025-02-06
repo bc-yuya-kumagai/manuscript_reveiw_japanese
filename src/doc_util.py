@@ -7,10 +7,12 @@ from lxml import etree
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 from src.entity import Section
+import re
+import logging
 import src.general_util as gu
 import src.llm_util as llm
-import re
-
+import src.kanji as kanji
+logger = logging.getLogger(__name__)
 # 問の見出しスタイルID
 question_heading_style_id = 'af8'
 # wordファイルから下線部のrunを抽出する
@@ -89,14 +91,15 @@ def extract_question_paragraphs(doc: Document, start:int, end:int) -> List[Parag
     """
     question_paragraphs = []
     for paragraph in doc.paragraphs[start:end+1]:
-        if paragraph.text.startswith("問"):
+        # TODO: 問の取得条件を適切に設定する  
+        if paragraph.text.startswith("問") and not paragraph.text.startswith("問題"):
             # 「問」で始まるパラグラフをリストに追加
             question_paragraphs.append(paragraph)
     return question_paragraphs
 
 def split_exam_2_sections(doc:Document):
-    """ docを大門ごとに分割する
-    大門の先頭は「【」で始まる
+    """ docを大問ごとに分割する
+    大問の先頭は「【」で始まる
     例: 【必答問題】この問題は全員解答してください。 
     """
     sections = []
@@ -390,22 +393,24 @@ def find_theme_font_schemas(word_file_path):
 
 def is_start_section(paragraph: Paragraph) -> bool:
     """
-    大門の開始を判定する関数。
+    大問の開始を判定する関数。
 
     Args:
         paragraph (Paragraph): python-docx の Paragraph オブジェクト。
 
     Returns:
-        bool: 大門の開始であれば True、そうでなければ False。
+        bool: 大問の開始であれば True、そうでなければ False。
     """
     if len(paragraph.text.strip()) == 0:
         return False
-    return paragraph.text.strip()[0] in ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+    # 大問の開始をスタイルで判定
+    daimon_runs = [r for r in paragraph.runs if (r.text.strip() != "" ) and (r.style is not None) and (r.style.style_id == "1-20")]
+    return len(daimon_runs) > 0
 
 def is_end_section(paragraph: Paragraph) -> bool:
     """
-    大門の終了を判定する関数。
-    大門の終わりには特別なマーカーは存在しないので常にFalse を返す。
+    大問の終了を判定する関数。
+    大問の終わりには特別なマーカーは存在しないので常にFalse を返す。
 
     Args:
         paragraph (Paragraph): python-docx の Paragraph オブジェクト。
@@ -416,7 +421,7 @@ def is_end_section(paragraph: Paragraph) -> bool:
     return paragraph.text.strip() == "END"
 def extract_sections(doc: Document) -> List[Section]:
     """
-    文書から大門を抽出する関数。
+    文書から大問を抽出する関数。
 
     Args:
         doc (Document): python-docx の Document オブジェクト。
@@ -759,6 +764,29 @@ def set_section_at_invalid_iterms(invalid_items:List[InvalidItem], section_numbe
         i.section_number = section_number
         results.append(i)
     return results
+
+def has_ruby(run):
+    # Run要素のXMLを取得
+    xml = run._r.xml
+    # ルビ要素の存在を確認
+    tree = etree.fromstring(xml)
+    namespace = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    ruby_elements = tree.findall(f'.//{namespace}ruby')
+    return len(ruby_elements) > 0
+
+def get_runs_with_not_ordinary_kanji_without_ruby(paragraphs:List[Paragraph]):
+    """段落から通常の漢字以外の文字を含むrunを取得する"""
+    runs_with_not_ordinary_kanji = []
+    for paragraph in paragraphs:
+        for run in paragraph.runs:
+            for char in run.text:
+                # charの文字コードが漢字の帯域ある場合は、そのrunをリストに追加
+                if 0x4E00 <= ord(char) <= 0x9FFF and char not in kanji.ORDINARY_KANJI_SET:
+                    if not has_ruby(run) :
+                        runs_with_not_ordinary_kanji.append((char, run))
+                        break
+
+    return runs_with_not_ordinary_kanji
 
 # 使用例
 if __name__ == "__main__":
