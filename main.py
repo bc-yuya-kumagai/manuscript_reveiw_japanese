@@ -105,12 +105,6 @@ def analyze_problem_doc(problem_doc, temp_problem_file_path):
                 result_check_font_of_unfit_item.section_number = section.section_number
                 result_check_font_of_unfit_item.question_number = q_idx + 1
                 problem_invalid_list.append(result_check_font_of_unfit_item)
-
-        # 選択肢設問の設問文で、「適切」ではなく「適当」となっているかチェックし、適切ならエラーを返す
-        check_keyword_exact_match_in_question_statement = ck.check_keyword_exact_match_in_question(question_texts)
-        if isinstance(check_keyword_exact_match_in_question_statement, InvalidItem):
-            check_keyword_exact_match_in_question_statement.section_number = section.section_number
-            problem_invalid_list.append(check_keyword_exact_match_in_question_statement)
     
         # 文書から「問」で始まるパラグラフを抽出する(各問の書き出しを取得する)
         extract_paragraphs = doc_util.extract_question_paragraphs(problem_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
