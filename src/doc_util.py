@@ -444,9 +444,9 @@ def is_start_expl_section(paragraph: Paragraph) -> bool:
     if len(paragraph.text)> 20:
         False
     title_offset = paragraph.text.find("現代文")
-    if len(title_offset) == -1:
+    if title_offset == -1:
         title_offset = paragraph.text.find("古文")
-    if len(title_offset) == -1:
+    if title_offset == -1:
         title_offset = paragraph.text.find("漢文")
     
     if title_offset == -1:

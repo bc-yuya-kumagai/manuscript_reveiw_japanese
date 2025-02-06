@@ -166,7 +166,7 @@ def analyze_solution_doc(solution_doc):
             explain_invalid_list.append(check_answer_point)
 
         # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
-        check_modern_translation = ck.check_modern_translation(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
+#        check_modern_translation = ck.check_modern_translation(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
     return explain_invalid_list
 
 def analyze_common_doc(problem_doc, solution_doc):
@@ -218,12 +218,7 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
     for category in ["problem", "solution", "common"]:
         invalid_list[category] = [error for error in invalid_list[category] if error is not None]
 
-    result = {
-        category: errors if errors else [{"message": "問題なし"}]
-        for category, errors in invalid_list.items()
-    }
-
-    return result
+    return invalid_list
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -342,12 +337,20 @@ def convert_to_html_table(data):
                 <td>{problem.message}</td>
             </tr>
         """
+   
+    if len(data["problem"]) == 0:
+        html += """
+            <tr>
+                <td colspan="4" class="text-center">チェックOK! </td>
+            </tr>
+        """
     html += """
         </tbody>
     </table>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     """
     return html
+
 
 @app.post("/upload",response_class=HTMLResponse)
 async def check_docx(problem_file: UploadFile = File(None), solution_file: UploadFile = File(None)):
