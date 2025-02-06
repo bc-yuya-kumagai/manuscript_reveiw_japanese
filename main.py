@@ -163,6 +163,7 @@ def analyze_solution_doc(solution_doc):
         # 記述設問の際、解説のポイントが存在しているかチェック
         check_answer_point = ck.check_answer_contains_points(solution_doc, start=section.star_paragraph_index, end=section.end_paragraph_index)
         if isinstance(check_answer_point, InvalidItem):
+            check_answer_point.
             explain_invalid_list.append(check_answer_point)
 
         # ●設問解説ブロッック内の現代語訳部分の表記が、現代語訳ブロックに存在するかチェック
@@ -170,23 +171,23 @@ def analyze_solution_doc(solution_doc):
     return explain_invalid_list
 
 def analyze_common_doc(problem_doc, solution_doc):
-    invalid_list = []
+    common_invalid_list = []
     # 問題と解説両方をチェック
     if problem_doc and solution_doc:
-        # 問のテキストを設問ごとにリストでの取得
-        problem_texts = doc_util.get_questions(problem_doc)
-        solution_texts = doc_util.get_questions(solution_doc)
+        
+        problem_texts = doc_util.get_questions(problem_doc, start=0, end=len(problem_doc.paragraphs))
+        solution_texts = doc_util.get_questions(solution_doc, start=0, end=len(solution_doc.paragraphs))
 
         # 大問の配点をチェックする。
         part_question_score_check = ck.check_part_question_score(problem_doc, solution_doc)
         if isinstance(part_question_score_check, InvalidItem):
-            invalid_list["common"].append(part_question_score_check)
+            common_invalid_list.append(part_question_score_check)
 
         # 問題文で文字数について言及されているものと解説文の文字数が一致しているかチェック
         check_question_and_answer_word_count=ck.check_question_sentence_word_count(problem_texts, solution_texts)
         if isinstance(check_question_and_answer_word_count, InvalidItem):
-            invalid_list["common"].append(check_question_and_answer_word_count)
-    return invalid_list
+            common_invalid_list.append(check_question_and_answer_word_count)
+    return common_invalid_list
 
 def analyze_docx(temp_problem_file_path, temp_solution_file_path):
     """
@@ -200,11 +201,7 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
     if temp_solution_file_path:
         solution_doc = Document(temp_solution_file_path)
 
-    invalid_list = {
-        "problem": [],
-        "solution": [],
-        "common": []
-    }
+    invalid_list = dict()
 
     if problem_doc:
         invalid_list["problem"] = analyze_problem_doc(problem_doc,temp_problem_file_path=temp_problem_file_path)
@@ -214,9 +211,6 @@ def analyze_docx(temp_problem_file_path, temp_solution_file_path):
 
     if problem_doc and solution_doc:
         invalid_list["common"] = analyze_common_doc(problem_doc, solution_doc)
-
-    for category in ["problem", "solution", "common"]:
-        invalid_list[category] = [error for error in invalid_list[category] if error is not None]
 
     return invalid_list
 
@@ -317,36 +311,106 @@ def convert_to_html_table(data):
 
     html = """
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <table class="table table-bordered table-striped table-hover">
+    
+    """
+    if data.get("problem"):
+
+        if len(data["problem"]) == 0:
+            html += """
+                
+                    <p >問題チェックOK! </p>
+                
+            """
+        else:
+            html += """問題のチェック結果
+            <table class="table table-bordered table-striped table-hover">
         <thead class="table-dark">
             <tr>
-                <th>大門</th>
+                <th>大問</th>
                 <th>問</th>
                 <th>エラー種別</th>
                 <th>メッセージ</th>
             </tr>
         </thead>
         <tbody>
-    """
-    for problem in data["problem"]:
-        html += f"""
-            <tr>
-                <td>{problem.section_number}</td>
-                <td>{problem.question_number}</td>
-                <td>{problem.type}</td>
-                <td>{problem.message}</td>
-            </tr>
         """
-   
-    if len(data["problem"]) == 0:
+        for problem in data["problem"]:
+            html += f"""
+                <tr>
+                    <td>{problem.section_number}</td>
+                    <td>{problem.question_number}</td>
+                    <td>{problem.type}</td>
+                    <td>{problem.message}</td>
+                </tr>
+               
+            """
         html += """
+            </tbody>
+        </table>"""
+
+
+    if data.get("solution"):
+        if len(data["solution"]) == 0:
+            html += """
+               <p>解説チェックOK!</p>
+            """
+        else:
+            html += """解説のチェック結果
+             <table class="table table-bordered table-striped table-hover">
+        <thead class="table-dark">
             <tr>
-                <td colspan="4" class="text-center">チェックOK! </td>
+                <th>大問</th>
+                <th>問</th>
+                <th>エラー種別</th>
+                <th>メッセージ</th>
             </tr>
-        """
-    html += """
-        </tbody>
-    </table>
+        </thead>
+        <tbody>
+            """
+        for solution in data["solution"]:
+            html += f"""
+                <tr>
+                    <td>{solution.section_number}</td>
+                    <td></td>
+                    <td>{solution.type}</td>
+                    <td>{solution.message}</td>
+                </tr>
+            """
+        html += """
+            </tbody>
+        </table>"""
+        
+    if data.get("common"):
+        if len(data["common"]) == 0:
+            html += """
+            <p>問題/解説比較チェックOK! </p>
+              
+            """
+        else:
+            html += """問題/解説比較チェック結果
+             <table class="table table-bordered table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>大問</th>
+                <th>問</th>
+                <th>エラー種別</th>
+                <th>メッセージ</th>
+            </tr>
+        </thead>
+        <tbody>"""
+        for common in data["common"]:
+            html += f"""
+                <tr>
+                    <td></td>
+                    <td></td>
+                    <td>{common.type}</td>
+                    <td>{common.message}</td>
+                </tr>
+            """
+        
+        html += """
+            </tbody>
+        </table>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     """
     return html

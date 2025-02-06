@@ -422,7 +422,7 @@ def check_answer_contains_points(doc:Document,start:int,end:int):
                 else:
                     error_question = question
                 # Exceptionを発火
-                return InvalidItem(type="フレーズ不足", message=f"{error_question}に、記述設問の場合解説のポイントが含まれていません。")
+                return InvalidItem(type="解説のポイントなし", message=f"{error_question}に、記述設問にて解説のポイントが含まれていません。")
 
 def check_phrase_in_kanji_writing_question(question_texts: List[Paragraph]) -> Generator[InvalidItem, None, None]:
     """
